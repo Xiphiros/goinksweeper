@@ -12,7 +12,7 @@
             --text: #dbdee1;
             --primary: #ff66aa;
             --border: #1e1f22;
-            --modal-overlay: rgba(0, 0, 0, 0.8);
+            --modal-overlay: rgba(0, 0, 0, 0.9);
         }
 
         .goink-app--light {
@@ -21,7 +21,7 @@
             --revealed: #e3e5e8;
             --text: #2e3338;
             --border: #c4c9ce;
-            --modal-overlay: rgba(0, 0, 0, 0.4);
+            --modal-overlay: rgba(0, 0, 0, 0.5);
         }
 
         body {
@@ -34,6 +34,31 @@
             align-items: center;
             min-height: 100vh;
             overflow: hidden;
+        }
+
+        .goink-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            z-index: 300;
+        }
+
+        .goink-menu--hidden {
+            display: none;
+        }
+
+        .goink-menu__logo {
+            width: 150px;
+            height: 150px;
+            filter: drop-shadow(0 0 20px var(--primary));
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         .goink-app {
@@ -49,31 +74,13 @@
             display: flex;
         }
 
-        .goink-app__splash {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--bg);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
-        }
-
-        .goink-app__splash--hidden {
-            display: none;
-        }
-
         .goink-app__title {
             color: var(--primary);
-            font-size: 2.5rem;
-            margin: 0 0 20px 0;
+            font-size: 3rem;
+            margin: 0;
             text-transform: uppercase;
-            letter-spacing: 4px;
-            text-shadow: 2px 2px var(--revealed);
+            letter-spacing: 6px;
+            text-shadow: 3px 3px var(--revealed);
         }
 
         .goink-app__controls {
@@ -116,22 +123,22 @@
             background: var(--primary);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 4px;
             font-weight: bold;
             cursor: pointer;
             text-transform: uppercase;
-            transition: transform 0.1s, opacity 0.2s;
+            transition: transform 0.1s, box-shadow 0.2s;
         }
 
         .goink-app__button:active {
             transform: scale(0.95);
         }
 
-        .goink-app__button--large {
-            padding: 20px 40px;
-            font-size: 1.5rem;
-            box-shadow: 0 0 20px var(--primary);
+        .goink-app__button--play {
+            font-size: 2rem;
+            padding: 20px 60px;
+            box-shadow: 0 0 30px var(--primary);
         }
 
         .goink-app__button--secondary {
@@ -148,8 +155,8 @@
             border-radius: 4px;
             overflow: auto;
             max-width: 90vw;
-            max-height: 70vh;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-height: 65vh;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
         }
 
         .goink-app__cell {
@@ -191,8 +198,8 @@
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
-            backdrop-filter: blur(4px);
+            z-index: 500;
+            backdrop-filter: blur(8px);
         }
 
         .goink-modal--visible {
@@ -201,18 +208,17 @@
 
         .goink-modal__content {
             background: var(--surface);
-            padding: 40px;
-            border-radius: 12px;
+            padding: 50px;
+            border-radius: 16px;
             text-align: center;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 20px var(--primary);
-            max-width: 300px;
+            border: 3px solid var(--primary);
+            box-shadow: 0 0 40px var(--primary);
         }
 
         .goink-modal__text {
-            font-size: 1.5rem;
+            font-size: 2rem;
             font-weight: bold;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             text-transform: uppercase;
         }
     </style>
@@ -221,21 +227,21 @@
 
     <audio id="bg-music" src="ctype.mp3" loop></audio>
 
-    <div id="splash" class="goink-app__splash">
+    <div id="menu" class="goink-menu">
+        <img src="goink.png" alt="Logo" class="goink-menu__logo">
         <h1 class="goink-app__title">GoinkSweeper</h1>
-        <button class="goink-app__button goink-app__button--large" onclick="startGame()">Start Goink</button>
+        <button class="goink-app__button goink-app__button--play" onclick="enterGoinkzone()">Goink!</button>
+        <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Toggle Theme</button>
     </div>
 
     <div id="modal" class="goink-modal">
         <div class="goink-modal__content">
             <div id="modal-text" class="goink-modal__text"></div>
-            <button class="goink-app__button" onclick="closeModal()">Play Again</button>
+            <button class="goink-app__button" onclick="closeModal()">Another Goink?</button>
         </div>
     </div>
 
     <main id="app" class="goink-app">
-        <h1 class="goink-app__title">GoinkSweeper</h1>
-
         <div class="goink-app__controls">
             <div class="goink-app__field-group">
                 <label class="goink-app__label">W</label>
@@ -249,7 +255,7 @@
                 <label class="goink-app__label">Goinks</label>
                 <input type="number" id="count" class="goink-app__input" value="12" min="1">
             </div>
-            <button class="goink-app__button" onclick="initGame()">New Game</button>
+            <button class="goink-app__button" onclick="initGame()">Reset</button>
             <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Theme</button>
         </div>
 
@@ -262,9 +268,9 @@
         let isGameOver = false;
         const music = document.getElementById('bg-music');
 
-        function startGame() {
+        function enterGoinkzone() {
             music.play().catch(() => {});
-            document.getElementById('splash').classList.add('goink-app__splash--hidden');
+            document.getElementById('menu').classList.add('goink-menu--hidden');
             document.getElementById('app').classList.add('goink-app--visible');
             initGame();
         }
@@ -350,7 +356,7 @@
             if (cellData.isGoink) {
                 cellEl.classList.add('goink-app__cell--goink');
                 cellEl.innerHTML = '<img src="goink.png">';
-                showModal("You Got Goinked!");
+                showModal("GOINKED!");
                 return;
             }
 
@@ -367,7 +373,7 @@
                 }
             }
 
-            if (revealedCells === (w * h) - g) showModal("Goink Victory!");
+            if (revealedCells === (w * h) - g) showModal("GOINK VICTORY!");
         }
 
         function showModal(text) {
