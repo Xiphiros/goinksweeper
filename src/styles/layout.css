@@ -6,6 +6,7 @@ body {
   overflow: hidden;
   user-select: none;
   transition: background-color 0.5s ease, color 0.5s ease;
+  cursor: default; /* Reverted to normal */
 }
 
 /* --- HEADER --- */

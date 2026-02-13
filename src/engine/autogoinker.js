@@ -3,28 +3,30 @@
  */
 export class Autogoinker {
   /**
-   * Calculates interval between actions. 
-   * Scales from ~2s down to ~100ms based on speed level.
+   * Calculates the base interval for a SINGLE cluster.
+   * Level 1: 2000ms
+   * Level 10: ~380ms
+   * Level 20: ~50ms
    */
   static getInterval(speedLevel) {
-    return Math.max(100, 2000 * Math.pow(0.82, speedLevel - 1));
+    const level = Math.max(1, speedLevel);
+    // Exponential decay: each level reduces the interval.
+    // We clamp the floor at 10ms to prevent CPU thermal runaway.
+    return Math.max(10, 2000 * Math.pow(0.82, level - 1));
   }
 
   /**
    * Fidelity Calibration:
-   * Starts at 5% (Level 1) - nearly random, mimics a malfunctioning script.
-   * Caps at 99.0% (theoretical limit).
-   * Progresses exponentially so early levels feel impactful but perfection is expensive.
+   * Level 1: ~5% (Nearly random)
+   * Progresses exponentially towards 99%.
    */
   static getAccuracy(accLevel) {
+    const level = Math.max(1, accLevel);
     const minFidelity = 0.05; 
     const maxFidelity = 0.99;
-    
-    // Decay constant: determines how many levels it takes to reach peak performance.
-    // 0.90 means each level closes 10% of the remaining distance to 99%.
     const decay = 0.90; 
     
-    const progress = 1 - Math.pow(decay, accLevel - 1);
+    const progress = 1 - Math.pow(decay, level - 1);
     return minFidelity + (maxFidelity - minFidelity) * progress;
   }
 
@@ -44,14 +46,13 @@ export class Autogoinker {
         .map((c, i) => (!c.r && !c.m ? i : -1))
         .filter(i => i !== -1);
         
-      // Fallback: If no safe cells are logically identifiable, take any unrevealed cell.
       if (candidates.length === 0) {
         candidates = node.grid
           .map((c, i) => (!c.r ? i : -1))
           .filter(i => i !== -1);
       }
     } else {
-      // Logic Failure: Random guess among all unrevealed cells (dangerous)
+      // Logic Failure: Random guess
       candidates = node.grid
         .map((c, i) => (!c.r ? i : -1))
         .filter(i => i !== -1);

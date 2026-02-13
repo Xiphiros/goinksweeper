@@ -38,7 +38,8 @@ export class AudioEngine {
 
   init() {
     if (this.ctx) return;
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AudioContext();
     
     this.filter = this.ctx.createBiquadFilter();
     this.filter.type = 'lowpass';
@@ -47,6 +48,10 @@ export class AudioEngine {
     this.musicGain = this.ctx.createGain();
     this.sfxGain = this.ctx.createGain();
     
+    // Initialize gains to 0 to prevent initial blasts
+    this.musicGain.gain.value = 0;
+    this.sfxGain.gain.value = 0;
+    
     this.musicGain.connect(this.filter);
     this.sfxGain.connect(this.filter);
     this.filter.connect(this.ctx.destination);
@@ -54,7 +59,32 @@ export class AudioEngine {
     this.musicSource = this.ctx.createMediaElementSource(this.bgMusic);
     this.musicSource.connect(this.musicGain);
     
+    // Attempt to start music immediately, volume will fade in via applyVolumeSettings
     this.bgMusic.play().catch(() => {});
+  }
+
+  /**
+   * Applies an exponential curve to the volume slider [0-1]
+   * to match human hearing perception (dB).
+   */
+  getExponentialGain(value) {
+    // Square the value for a simple, effective approximation of a log curve.
+    // 0.5 input becomes 0.25 gain (-12dB)
+    // 0.1 input becomes 0.01 gain (-40dB)
+    return Math.max(0, Math.min(1, value * value));
+  }
+
+  setMusicVolume(value) {
+    if (!this.musicGain || !this.ctx) return;
+    const targetGain = this.getExponentialGain(value);
+    // Use a short time constant for responsive slider feel without zipper noise
+    this.musicGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.02);
+  }
+
+  setSfxVolume(value) {
+    if (!this.sfxGain || !this.ctx) return;
+    const targetGain = this.getExponentialGain(value);
+    this.sfxGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.02);
   }
 
   /**
@@ -67,7 +97,6 @@ export class AudioEngine {
 
     const now = this.ctx.currentTime;
     
-    // Initialize oscillator if not present
     if (!this.scrollOsc) {
       this.scrollOsc = this.ctx.createOscillator();
       this.scrollGain = this.ctx.createGain();
@@ -83,11 +112,9 @@ export class AudioEngine {
       this.scrollOsc.start();
     }
 
-    // Shift pitch based on direction
     const targetFreq = direction > 0 ? 220 : 110;
     this.scrollOsc.frequency.setTargetAtTime(targetFreq, now, 0.05);
 
-    // Refresh silence timer
     if (this.scrollTimeout) clearTimeout(this.scrollTimeout);
     this.scrollTimeout = setTimeout(() => this.stopScrollHum(), 150);
   }
@@ -98,21 +125,15 @@ export class AudioEngine {
     this.scrollGain.gain.setTargetAtTime(0, now, 0.05);
     
     setTimeout(() => {
-      if (this.scrollOsc && this.scrollGain.gain.value < 0.01) {
-        this.scrollOsc.stop();
-        this.scrollOsc.disconnect();
-        this.scrollOsc = null;
-        this.scrollGain = null;
+      if (this.scrollOsc && this.scrollGain && this.scrollGain.gain.value < 0.01) {
+        try {
+            this.scrollOsc.stop();
+            this.scrollOsc.disconnect();
+            this.scrollOsc = null;
+            this.scrollGain = null;
+        } catch(e) { /* Ignore if already stopped */ }
       }
     }, 100);
-  }
-
-  setMusicVolume(value) {
-    if (this.musicGain) this.musicGain.gain.setTargetAtTime(value, this.ctx.currentTime, 0.05);
-  }
-
-  setSfxVolume(value) {
-    if (this.sfxGain) this.sfxGain.gain.setTargetAtTime(value, this.ctx.currentTime, 0.05);
   }
 
   setFilterSubmerged(isSubmerged) {
@@ -123,10 +144,13 @@ export class AudioEngine {
 
   playUiToggle(isOpen) {
     if (!this.ctx) this.init();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     osc.type = 'sine';
+    
     if (isOpen) {
       osc.frequency.setValueAtTime(400, now);
       osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
@@ -134,40 +158,52 @@ export class AudioEngine {
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
     }
+    
     g.gain.setValueAtTime(0.25, now);
     g.gain.linearRampToValueAtTime(0, now + 0.15);
+    
     osc.connect(g);
-    g.connect(this.sfxGain);
+    g.connect(this.sfxGain); // Route through SFX gain
     osc.start(now);
     osc.stop(now + 0.15);
   }
 
   playNote(cellValue) {
     if (!this.ctx) this.init();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
     const now = this.ctx.currentTime;
     if (this.activeVoices >= this.maxVoices) return;
+    
     let scheduledTime = now;
     if (scheduledTime < this.lastNoteTime + this.minNoteGap) {
       scheduledTime = this.lastNoteTime + this.minNoteGap;
     }
     this.lastNoteTime = scheduledTime;
+    
     const harmonicOffset = Math.floor(this.noteIndex % 3); 
     const scaleIndex = (cellValue + harmonicOffset) % AUDIO_CONFIG.SCALE.length;
     const freq = AUDIO_CONFIG.SCALE[scaleIndex];
     this.noteIndex++;
+    
     this.triggerOscillator(freq, 0.15, 'triangle', scheduledTime - now, 0.8);
   }
 
   playGoink() {
     if (!this.ctx) this.init();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
+    
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(110, now);
     osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+    
     g.gain.setValueAtTime(0.15, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    
     osc.connect(g);
     g.connect(this.sfxGain);
     osc.start();
@@ -176,6 +212,8 @@ export class AudioEngine {
 
   playSuccess(tierKey) {
     if (!this.ctx) this.init();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
     const profile = this.CHORD_MAP[tierKey] || this.CHORD_MAP['tier_b']; 
     profile.notes.forEach((freq, i) => {
       const vol = 0.6 / Math.sqrt(profile.notes.length * 0.5); 
@@ -189,15 +227,20 @@ export class AudioEngine {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     this.activeVoices++;
+    
     osc.type = type;
     osc.frequency.setValueAtTime(freq, now);
+    
     g.gain.setValueAtTime(0, now);
     g.gain.linearRampToValueAtTime(volumeScale, now + 0.01);
     g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    
     osc.connect(g);
-    g.connect(this.sfxGain); 
+    g.connect(this.sfxGain); // Route through SFX Master
+    
     osc.start(now);
     osc.stop(now + duration);
+    
     setTimeout(() => {
       this.activeVoices = Math.max(0, this.activeVoices - 1);
     }, (delay + duration) * 1000);

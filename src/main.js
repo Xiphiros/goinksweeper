@@ -1,62 +1,87 @@
-import { state } from './core/state.js';
-import { NODE_TYPES, UPGRADE_DEFINITIONS, CELL_SIZE, LIFECYCLE } from './core/constants.js';
-import { GridEngine } from './engine/grid.js';
-import { PlacementEngine } from './engine/placement.js';
-import { Autogoinker } from './engine/autogoinker.js';
-import { NodeComponent } from './ui/nodeComponent.js';
-import { ViewportManager } from './ui/viewport.js';
-import { ContextMenu } from './ui/contextMenu.js';
-import { Modal } from './ui/modal.js';
-import { audio } from './engine/audio.js';
-import { telemetry } from './engine/telemetry.js';
+import { state } from "./core/state.js";
+import {
+  NODE_TYPES,
+  UPGRADE_DEFINITIONS,
+  CELL_SIZE,
+} from "./core/constants.js";
+import { PlacementEngine } from "./engine/placement.js";
+import { Autogoinker } from "./engine/autogoinker.js";
+import { audio } from "./engine/audio.js";
+import { telemetry } from "./engine/telemetry.js";
+import { NodeComponent } from "./ui/nodeComponent.js";
+import { ViewportManager } from "./ui/viewport.js";
+import { ContextMenu } from "./ui/contextMenu.js";
+import { Modal } from "./ui/modal.js";
 
 class GoinksweeperApp {
   constructor() {
+    this.worker = new Worker(new URL("./engine/worker.js", import.meta.url), {
+      type: "module",
+    });
+    this.nodeElements = new Map();
+
     this.viewport = new ViewportManager(
       document.getElementById("viewport"),
       document.getElementById("world"),
       state,
-      () => this.closeOverlays()
+      () => this.closeOverlays(),
     );
-    
+
     ContextMenu.init(document.getElementById("ctx-menu"));
     this.nodesContainer = document.getElementById("world");
-    this.nodeElements = new Map();
-    this.resetTimers = new Map();
-    
-    document.getElementById("slider-bgm").value = state.volume.bgm;
-    document.getElementById("slider-sfx").value = state.volume.sfx;
 
     this.applyTheme();
     this.applyBackground();
+    this.initWorkerListeners();
     this.setupEventListeners();
-    this.startLoops();
+    this.syncWorkerConfig();
 
-    const bootAudio = () => {
-      audio.init();
-      this.applyVolumeSettings();
-    };
-
-    window.addEventListener('mousedown', bootAudio, { once: true });
-    window.addEventListener('keydown', bootAudio, { once: true });
-    
     setTimeout(() => {
       if (state.nodes.length === 0) {
         this.spawnNode("tier_a");
       } else {
         this.focusOnFirstNode();
       }
-    }, 50);
+    }, 100);
+
+    requestAnimationFrame(() => this.updateLoop());
+  }
+
+  initWorkerListeners() {
+    this.worker.onmessage = (e) => {
+      const { type, data } = e.data;
+
+      if (type === "GP_GAIN") {
+        state.gp += data.amount;
+        telemetry.log(data.amount, 1);
+      } else if (type === "SFX") {
+        if (data.name === "goink") audio.playGoink();
+        if (data.name === "success") audio.playSuccess(data.tier);
+        if (data.name === "note") audio.playNote(data.value);
+      } else if (type === "NODE_STATUS") {
+        const node = state.nodes.find((n) => n.id === data.nodeId);
+        if (node) {
+          node.status = data.status;
+          node.auto = data.auto;
+          node.difficulty = data.difficulty;
+          node.mines = data.mines;
+          node.genId = data.genId;
+          state.save();
+
+          const el = this.nodeElements.get(data.nodeId);
+          if (el) {
+            NodeComponent.updateOverlay(el, node, this.worker);
+          }
+        }
+      }
+    };
   }
 
   applyTheme() {
-    document.body.setAttribute('data-theme', state.theme);
-    NodeComponent.refreshColorCache();
+    document.body.setAttribute("data-theme", state.theme);
+    this.syncWorkerConfig();
   }
 
-  /**
-   * Applies background visibility and custom image to the viewport.
-   */
   applyBackground() {
     const viewport = document.getElementById("viewport");
     if (state.bgEnabled) {
@@ -64,85 +89,42 @@ class GoinksweeperApp {
     } else {
       viewport.classList.add("viewport--no-bg");
     }
-    document.documentElement.style.setProperty('--dynamic-bg-url', `url('${state.bgUrl}')`);
-  }
-
-  applyVolumeSettings() {
-    audio.setMusicVolume(state.volume.bgm);
-    audio.setSfxVolume(state.volume.sfx);
-  }
-
-  focusOnFirstNode() {
-    this.viewport.centerOn(0, 0, 400, 400);
-  }
-
-  closeOverlays() {
-    this.setMarketOpen(false);
-    this.setSidebarOpen(false);
-  }
-
-  setMarketOpen(isOpen) {
-    const shopPanel = document.getElementById("shop-panel");
-    const isCurrentlyOpen = shopPanel.classList.contains("market--open");
-    if (isOpen === isCurrentlyOpen) return;
-
-    if (isOpen) {
-      shopPanel.classList.add("market--open");
-      this.setSidebarOpen(false);
-      document.getElementById("viewport").classList.add("viewport--dimmed");
-      this.renderShop();
-    } else {
-      shopPanel.classList.remove("market--open");
-      if (!document.getElementById("sidebar").classList.contains("sidebar--open")) {
-        document.getElementById("viewport").classList.remove("viewport--dimmed");
-      }
-    }
-    audio.playUiToggle(isOpen);
-  }
-
-  setSidebarOpen(isOpen) {
-    const sidebar = document.getElementById("sidebar");
-    const overlay = document.getElementById("sidebar-overlay");
-    const isCurrentlyOpen = sidebar.classList.contains("sidebar--open");
-    if (isOpen === isCurrentlyOpen) return;
-    
-    if (isOpen) {
-      sidebar.classList.add("sidebar--open");
-      overlay.classList.add("sidebar-overlay--active");
-      document.getElementById("viewport").classList.add("viewport--dimmed");
-    } else {
-      sidebar.classList.remove("sidebar--open");
-      overlay.classList.remove("sidebar-overlay--active");
-      if (!document.getElementById("shop-panel").classList.contains("market--open")) {
-        document.getElementById("viewport").classList.remove("viewport--dimmed");
-      }
-    }
-    audio.playUiToggle(isOpen);
+    document.documentElement.style.setProperty(
+      "--dynamic-bg-url",
+      `url('${state.bgUrl}')`,
+    );
   }
 
   setupEventListeners() {
-    document.getElementById("btn-start").onclick = (e) => {
-      e.stopPropagation();
+    const bootAudio = () => {
       audio.init();
       this.applyVolumeSettings();
-      document.getElementById("home-screen").classList.add("home-screen--hidden");
     };
 
-    document.getElementById("btn-menu").onclick = (e) => {
-      e.stopPropagation();
-      this.setSidebarOpen(!document.getElementById("sidebar").classList.contains("sidebar--open"));
+    document.getElementById("btn-start").onclick = () => {
+      document
+        .getElementById("home-screen")
+        .classList.add("home-screen--hidden");
+      bootAudio();
     };
 
-    document.getElementById("sidebar-overlay").onclick = () => this.setSidebarOpen(false);
+    window.addEventListener("mousedown", bootAudio, { once: true });
+    window.addEventListener("keydown", bootAudio, { once: true });
+
+    // Global listener to close custom selects
+    window.addEventListener("mousedown", () => {
+      document
+        .querySelectorAll(".goink-select--open")
+        .forEach((s) => s.classList.remove("goink-select--open"));
+    });
 
     document.getElementById("btn-theme").onclick = (e) => {
       e.stopPropagation();
-      state.theme = state.theme === 'light' ? 'dark' : 'light';
+      state.theme = state.theme === "light" ? "dark" : "light";
       state.save();
       this.applyTheme();
     };
 
-    // Background Management
     document.getElementById("btn-bg-toggle").onclick = (e) => {
       e.stopPropagation();
       state.bgEnabled = !state.bgEnabled;
@@ -169,14 +151,9 @@ class GoinksweeperApp {
 
     document.getElementById("btn-bg-reset").onclick = (e) => {
       e.stopPropagation();
-      state.bgUrl = '../../bg.jpg';
+      state.bgUrl = "../../bg.jpg";
       state.save();
       this.applyBackground();
-    };
-
-    document.getElementById("shop-toggle").onclick = (e) => {
-      e.stopPropagation();
-      this.setMarketOpen(!document.getElementById("shop-panel").classList.contains("market--open"));
     };
 
     document.getElementById("btn-rearrange").onclick = (e) => {
@@ -184,210 +161,299 @@ class GoinksweeperApp {
       this.rearrangeClusters();
     };
 
-    document.getElementById("slider-bgm").oninput = (e) => {
+    document.getElementById("btn-home").onclick = (e) => {
+      e.stopPropagation();
+      this.focusOnFirstNode();
+    };
+
+    const bgmSlider = document.getElementById("slider-bgm");
+    const sfxSlider = document.getElementById("slider-sfx");
+    bgmSlider.value = state.volume.bgm;
+    sfxSlider.value = state.volume.sfx;
+
+    bgmSlider.oninput = (e) => {
       const val = parseFloat(e.target.value);
       state.volume.bgm = val;
       audio.setMusicVolume(val);
       state.save();
     };
 
-    document.getElementById("slider-sfx").oninput = (e) => {
+    sfxSlider.oninput = (e) => {
       const val = parseFloat(e.target.value);
       state.volume.sfx = val;
       audio.setSfxVolume(val);
       state.save();
     };
 
-    document.getElementById("btn-home").onclick = (e) => {
+    document.getElementById("shop-toggle").onclick = (e) => {
       e.stopPropagation();
-      this.focusOnFirstNode();
+      this.setMarketOpen(
+        !document
+          .getElementById("shop-panel")
+          .classList.contains("market--open"),
+      );
     };
 
-    document.getElementById("btn-reset-data").onclick = async (e) => {
-      e.stopPropagation();
-      const result = await Modal.confirm("WIPE DATA?", "Proceed to delete all progress?");
-      if (result) {
+    document.getElementById("btn-reset-data").onclick = async () => {
+      if (await Modal.confirm("WIPE DATA?", "Delete everything?")) {
         localStorage.removeItem("goinksweeper_data");
-        window.location.reload();
+        location.reload();
       }
     };
 
-    document.getElementById("btn-auto-all").onclick = (e) => {
+    document.getElementById("btn-menu").onclick = (e) => {
       e.stopPropagation();
+      this.setSidebarOpen(
+        !document.getElementById("sidebar").classList.contains("sidebar--open"),
+      );
+    };
+
+    document.getElementById("sidebar-overlay").onclick = () =>
+      this.setSidebarOpen(false);
+
+    document.getElementById("btn-auto-all").onclick = () => {
       state.globalAuto = true;
-      state.nodes.forEach(n => n.auto = true);
+      state.nodes.forEach((n) => {
+        this.worker.postMessage({
+          type: "TOGGLE_AUTO",
+          data: { nodeId: n.id, state: true },
+        });
+      });
       state.save();
     };
 
-    document.getElementById("btn-auto-none").onclick = (e) => {
-      e.stopPropagation();
+    document.getElementById("btn-auto-none").onclick = () => {
       state.globalAuto = false;
-      state.nodes.forEach(n => n.auto = false);
+      state.nodes.forEach((n) => {
+        this.worker.postMessage({
+          type: "TOGGLE_AUTO",
+          data: { nodeId: n.id, state: false },
+        });
+      });
       state.save();
     };
 
     this.renderShop();
   }
 
-  rearrangeClusters() {
-    state.nodes = PlacementEngine.packNodes(state.nodes);
-    state.save();
-    this.nodeElements.forEach(el => el.remove());
-    this.nodeElements.clear();
-    this.focusOnFirstNode();
-    audio.playNote(4);
+  applyVolumeSettings() {
+    audio.setMusicVolume(state.volume.bgm);
+    audio.setSfxVolume(state.volume.sfx);
   }
 
   spawnNode(typeKey) {
     const def = NODE_TYPES[typeKey];
     const pos = PlacementEngine.findPosition(def.w, def.h, state.nodes);
     const node = state.addNode(typeKey, pos.x, pos.y);
-    GridEngine.generate(node);
+    node.difficulty = "MEDIUM";
+    const el = this.createNodeElement(node);
     state.save();
-    this.viewport.centerOn(node.x, node.y, node.w * CELL_SIZE, node.h * CELL_SIZE + 24);
+    this.viewport.centerOn(
+      node.x,
+      node.y,
+      node.w * CELL_SIZE,
+      node.h * CELL_SIZE + 24,
+    );
     this.renderShop();
   }
 
-  async handleManualReset(node) {
-    if (node.status === "active") {
-      const penalty = Math.floor(state.getBaseNodeCost(node.type) * 0.05);
-      if (state.gp < penalty) {
-        await Modal.alert("INSUFFICIENT FUNDS", `Need ${penalty.toLocaleString()} GP.`);
-        return;
+  createNodeElement(node) {
+    if (this.nodeElements.has(node.id)) return this.nodeElements.get(node.id);
+
+    const el = NodeComponent.createBase(node, this.worker, (e, n) => {
+      const activeNode = state.nodes.find((sn) => sn.id === node.id);
+
+      const menuItems = [
+        {
+          label: "Re-initialize",
+          danger: true,
+          action: () => {
+            this.worker.postMessage({
+              type: "RESET_NODE",
+              data: { nodeId: node.id },
+            });
+          },
+        },
+        {
+          label: "Sell Cluster",
+          danger: true,
+          action: async () => {
+            const refund = Math.floor(state.getItemCost(node.type) * 0.4);
+            if (
+              await Modal.confirm(
+                "SELL CLUSTER?",
+                `Refund: ${refund.toLocaleString()} GP?`,
+              )
+            ) {
+              this.removeNode(node.id);
+            }
+          },
+        },
+      ];
+
+      if (state.systemUnlocked) {
+        menuItems.unshift({
+          label: `Auto: ${activeNode.auto ? "ON" : "OFF"}`,
+          action: () => {
+            this.worker.postMessage({
+              type: "TOGGLE_AUTO",
+              data: { nodeId: node.id, state: !activeNode.auto },
+            });
+          },
+        });
       }
-      state.gp -= penalty;
-    }
-    this.executeReset(node);
+      ContextMenu.show(e, menuItems);
+    });
+
+    this.nodesContainer.appendChild(el);
+    this.nodeElements.set(node.id, el);
+    return el;
   }
 
-  executeReset(node) {
-    if (this.resetTimers.has(node.id)) {
-      clearTimeout(this.resetTimers.get(node.id));
-      this.resetTimers.delete(node.id);
-    }
-    GridEngine.generate(node); 
-    state.save();
-    const el = this.nodeElements.get(node.id);
-    if (el) NodeComponent.update(el, node, (n) => this.executeReset(n));
+  removeNode(id) {
+    state.removeNode(id);
+    this.worker.postMessage({ type: "KILL_NODE", data: { nodeId: id } });
+    const el = this.nodeElements.get(id);
+    if (el) el.remove();
+    this.nodeElements.delete(id);
     this.renderShop();
   }
 
-  handleCellClick(node, idx) {
-    if (node.status !== "active") return;
-    const cell = node.grid[idx];
-    if (cell.r) return;
+  rearrangeClusters() {
+    state.nodes = PlacementEngine.packNodes(state.nodes);
+    state.save();
+    state.nodes.forEach((n) => {
+      const el = this.nodeElements.get(n.id);
+      if (el) {
+        el.style.left = `${n.x}px`;
+        el.style.top = `${n.y}px`;
+      }
+    });
+    audio.playNote(4);
+  }
 
-    if (node.revealedCount === 0 && cell.m) {
-      cell.m = false;
-      GridEngine.generate(node, idx);
+  syncWorkerConfig() {
+    const s = getComputedStyle(document.body);
+    const accLevel = state.getOwned("autoAcc");
+    const speedLevel = state.getOwned("autoSpeed");
+
+    this.worker.postMessage({
+      type: "SYNC_CONFIG",
+      data: {
+        scale: state.view.scale,
+        accuracy: Autogoinker.getAccuracy(accLevel),
+        speed: Autogoinker.getInterval(speedLevel),
+        colors: {
+          surface: s.getPropertyValue("--color-surface").trim(),
+          surfaceAlt: s.getPropertyValue("--color-surface-alt").trim(),
+          primary: s.getPropertyValue("--color-primary").trim(),
+          danger: s.getPropertyValue("--color-danger").trim(),
+          blue: s.getPropertyValue("--color-accent-blue").trim(),
+          green: s.getPropertyValue("--color-accent-green").trim(),
+          purple: "#9b5de5",
+        },
+      },
+    });
+  }
+
+  updateLoop() {
+    document.getElementById("disp-gp").textContent = Math.floor(
+      state.gp,
+    ).toLocaleString();
+
+    const accuracy = Autogoinker.getAccuracy(state.getOwned("autoAcc"));
+    document.getElementById("disp-acc").textContent =
+      `${(accuracy * 100).toFixed(1)}%`;
+
+    const rates = telemetry.getRates();
+    const gpsDisplay =
+      rates.gps > 100
+        ? Math.floor(rates.gps).toLocaleString()
+        : rates.gps.toFixed(1);
+    document.getElementById("disp-gps").textContent = gpsDisplay;
+    document.getElementById("disp-rps").textContent = rates.rps.toFixed(1);
+
+    if (
+      this._lastScale !== state.view.scale ||
+      this._lastTheme !== state.theme
+    ) {
+      this.syncWorkerConfig();
+      this._lastScale = state.view.scale;
+      this._lastTheme = state.theme;
     }
 
-    cell.r = true;
-    node.revealedCount++;
-    const def = NODE_TYPES[node.type];
-    let earnedGp = 0;
+    const bounds = this.viewport.getVisibleBounds();
 
-    if (cell.m) {
-      node.status = "goinked";
-      audio.playGoink();
-      const timer = setTimeout(() => this.executeReset(node), LIFECYCLE.GOINKED_RESET_DELAY);
-      this.resetTimers.set(node.id, timer);
+    state.nodes.forEach((node) => {
+      if (!this.nodeElements.has(node.id)) {
+        if (this.isNodeVisible(node, bounds)) {
+          this.createNodeElement(node);
+        }
+      }
+
+      const el = this.nodeElements.get(node.id);
+      if (el) {
+        const visible = this.isNodeVisible(node, bounds);
+        if (visible) {
+          el.style.display = "flex";
+          NodeComponent.updateOverlay(el, node, this.worker);
+        } else {
+          el.style.display = "none";
+        }
+      }
+    });
+
+    requestAnimationFrame(() => this.updateLoop());
+  }
+
+  isNodeVisible(node, bounds) {
+    const w = node.w * CELL_SIZE + node.w + 8;
+    const h = node.h * CELL_SIZE + node.h + 36;
+    return (
+      node.x + w > bounds.left &&
+      node.x < bounds.right &&
+      node.y + h > bounds.top &&
+      node.y < bounds.bottom
+    );
+  }
+
+  focusOnFirstNode() {
+    this.viewport.centerOn(0, 0, 400, 400);
+  }
+  closeOverlays() {
+    this.setMarketOpen(false);
+    this.setSidebarOpen(false);
+  }
+  setMarketOpen(isOpen) {
+    const p = document.getElementById("shop-panel");
+    if (isOpen) {
+      p.classList.add("market--open");
+      this.renderShop();
+    } else p.classList.remove("market--open");
+  }
+  setSidebarOpen(isOpen) {
+    const s = document.getElementById("sidebar");
+    const o = document.getElementById("sidebar-overlay");
+    if (isOpen) {
+      s.classList.add("sidebar--open");
+      o.classList.add("sidebar-overlay--active");
     } else {
-      earnedGp = def.mult * state.getOwned('manualMult');
-      state.gp += earnedGp;
-      audio.playNote(cell.v);
-      if (cell.v === 0) GridEngine.floodFill(node, idx);
-      
-      if (node.revealedCount === (node.w * node.h) - node.mines) {
-        node.status = "cleared";
-        const bonus = def.mult * (node.w * node.h) * 5;
-        state.gp += bonus;
-        earnedGp += bonus; // Count bonus towards telemetry
-        audio.playSuccess(node.type);
-        const timer = setTimeout(() => this.executeReset(node), LIFECYCLE.CLEARED_RESET_DELAY);
-        this.resetTimers.set(node.id, timer);
-      }
+      s.classList.remove("sidebar--open");
+      o.classList.remove("sidebar-overlay--active");
     }
-    
-    // Log telemetry for this action
-    telemetry.log(earnedGp, 1);
-    
-    state.save();
-  }
-
-  startLoops() {
-    const render = () => {
-      // General Stats
-      document.getElementById("disp-gp").textContent = Math.floor(state.gp).toLocaleString();
-      const accuracy = Autogoinker.getAccuracy(state.getOwned('autoAcc'));
-      document.getElementById("disp-acc").textContent = `${(accuracy * 100).toFixed(1)}%`;
-      
-      // Telemetry Stats
-      const rates = telemetry.getRates();
-      // GPS: Use no decimals if > 100, else 1 decimal
-      const gpsDisplay = rates.gps > 100 ? Math.floor(rates.gps).toLocaleString() : rates.gps.toFixed(1);
-      document.getElementById("disp-gps").textContent = gpsDisplay;
-      document.getElementById("disp-rps").textContent = rates.rps.toFixed(1);
-
-      const bounds = this.viewport.getVisibleBounds();
-      const visibleIds = new Set();
-      state.nodes.forEach(node => {
-        const w = node.w * CELL_SIZE + node.w + 8;
-        const h = node.h * CELL_SIZE + node.h + 36;
-        if (node.x + w > bounds.left && node.x < bounds.right && 
-            node.y + h > bounds.top && node.y < bounds.bottom) {
-          visibleIds.add(node.id);
-          let el = this.nodeElements.get(node.id);
-          if (!el) {
-            el = NodeComponent.createBase(node, (n, i) => this.handleCellClick(n, i));
-            this.nodesContainer.appendChild(el);
-            this.nodeElements.set(node.id, el);
-            el.oncontextmenu = (e) => {
-              e.preventDefault(); e.stopPropagation();
-              const menuItems = [
-                { label: "Re-initialize", danger: true, action: () => this.handleManualReset(node) },
-                { label: "Sell Cluster", danger: true, action: async () => {
-                    const refund = Math.floor(state.getItemCost(node.type) * 0.4);
-                    const ok = await Modal.confirm("SELL CLUSTER?", `Refund: ${refund.toLocaleString()} GP?`);
-                    if (ok) { state.removeNode(node.id); audio.playUiToggle(false); this.renderShop(); }
-                }}
-              ];
-              if (state.systemUnlocked) {
-                menuItems.unshift({ label: `Auto: ${node.auto ? 'ON' : 'OFF'}`, action: () => { node.auto = !node.auto; state.save(); } });
-              }
-              ContextMenu.show(e, menuItems);
-            };
-          }
-          NodeComponent.update(el, node, (n) => this.executeReset(n));
-        }
-      });
-      for (const [id, el] of this.nodeElements) { if (!visibleIds.has(id)) { el.remove(); this.nodeElements.delete(id); } }
-      requestAnimationFrame(render);
-    };
-    render();
-
-    const runAuto = () => {
-      if (state.systemUnlocked && state.globalAuto) {
-        const active = state.nodes.filter(n => n.status === "active" && n.auto);
-        if (active.length > 0) {
-          const node = active[Math.floor(Math.random() * active.length)];
-          const target = Autogoinker.decideMove(node, Autogoinker.getAccuracy(state.getOwned('autoAcc')));
-          if (target !== null) this.handleCellClick(node, target);
-        }
-      }
-      setTimeout(runAuto, Autogoinker.getInterval(state.getOwned('autoSpeed')));
-    };
-    runAuto();
   }
 
   renderShop() {
     const list = document.getElementById("shop-list");
     list.innerHTML = "";
-    UPGRADE_DEFINITIONS.forEach(u => {
+
+    UPGRADE_DEFINITIONS.forEach((u) => {
       const owned = state.getOwned(u.id);
       if (u.max && owned >= u.max) return;
-      if (!state.systemUnlocked && (u.id === 'autoSpeed' || u.id === 'autoAcc')) return;
-      const cost = state.getItemCost(u.id); 
+      if (!state.systemUnlocked && (u.id === "autoSpeed" || u.id === "autoAcc"))
+        return;
+
+      const cost = state.getItemCost(u.id);
       const card = document.createElement("div");
       card.className = "card";
       card.innerHTML = `
@@ -396,20 +462,27 @@ class GoinksweeperApp {
           <span class="card__cost">${cost.toLocaleString()}</span>
         </div>
         <div class="card__desc">${u.desc}<br><span style="color:var(--color-primary-dim)">Level: ${owned}</span></div>
-        <button class="card__buy-btn" ${state.gp < cost ? 'disabled' : ''}>PURCHASE</button>
+        <button class="card__buy-btn" ${state.gp < cost ? "disabled" : ""}>PURCHASE</button>
       `;
       card.querySelector("button").onclick = () => {
-        if (state.gp >= cost) { state.gp -= cost; state.recordPurchase(u.id); this.renderShop(); }
+        if (state.gp >= cost) {
+          state.gp -= cost;
+          state.recordPurchase(u.id);
+          this.syncWorkerConfig();
+          this.renderShop();
+        }
       };
       list.appendChild(card);
     });
+
     const nodeHeader = document.createElement("div");
     nodeHeader.className = "market__header";
     nodeHeader.style.border = "none";
     nodeHeader.style.marginTop = "20px";
     nodeHeader.innerText = "CLUSTER EXPANSION";
     list.appendChild(nodeHeader);
-    Object.keys(NODE_TYPES).forEach(key => {
+
+    Object.keys(NODE_TYPES).forEach((key) => {
       const def = NODE_TYPES[key];
       const cost = state.getItemCost(key);
       const owned = state.getOwned(key);
@@ -421,13 +494,17 @@ class GoinksweeperApp {
           <span class="card__cost">${cost.toLocaleString()}</span>
         </div>
         <div class="card__desc" style="font-size:0.75rem">Dim: ${def.w}x${def.h}<br><span style="color:var(--color-primary-dim)">Owned: ${owned}</span></div>
-        <button class="card__buy-btn" ${state.gp < cost ? 'disabled' : ''}>INITIALIZE</button>
+        <button class="card__buy-btn" ${state.gp < cost ? "disabled" : ""}>INITIALIZE</button>
       `;
       card.querySelector("button").onclick = () => {
-        if (state.gp >= cost) { state.gp -= cost; this.spawnNode(key); this.renderShop(); }
+        if (state.gp >= cost) {
+          state.gp -= cost;
+          this.spawnNode(key);
+        }
       };
       list.appendChild(card);
     });
   }
 }
+
 new GoinksweeperApp();

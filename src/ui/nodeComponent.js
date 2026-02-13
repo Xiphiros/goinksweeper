@@ -1,174 +1,192 @@
-import { CELL_SIZE, NODE_TYPES } from '../core/constants.js';
+import { CELL_SIZE, NODE_TYPES, DIFFICULTIES } from "../core/constants.js";
 
 export class NodeComponent {
-  static colorCache = null;
-  static hoveredNodes = new Map(); 
-
   /**
-   * Caches theme-specific colors to avoid layout thrashing in the render loop.
+   * Creates the DOM element with custom UI components.
    */
-  static refreshColorCache() {
-    const s = getComputedStyle(document.body);
-    this.colorCache = {
-      surface: s.getPropertyValue('--color-surface').trim(),
-      surfaceAlt: s.getPropertyValue('--color-surface-alt').trim(),
-      primary: s.getPropertyValue('--color-primary').trim(),
-      danger: s.getPropertyValue('--color-danger').trim(),
-      blue: s.getPropertyValue('--color-accent-blue').trim(),
-      green: s.getPropertyValue('--color-accent-green').trim()
-    };
-  }
-
-  /**
-   * Converts screen mouse coordinates to grid-cell indices.
-   * Accounts for CSS Scale, Device Pixel Ratio, and 4px Grid Padding.
-   */
-  static getGridCoords(e, canvas, node) {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    // Scale factor between logical pixels and screen pixels (handling zoom)
-    const scaleX = (canvas.width / dpr) / rect.width;
-    const scaleY = (canvas.height / dpr) / rect.height;
-
-    // Local coordinates on the canvas logic plane
-    const localX = (e.clientX - rect.left) * scaleX;
-    const localY = (e.clientY - rect.top) * scaleY;
-
-    const col = Math.floor(localX / (CELL_SIZE + 1));
-    const row = Math.floor(localY / (CELL_SIZE + 1));
-
-    return { col, row };
-  }
-
-  static createBase(node, onCellClick) {
+  static createBase(node, worker, onContextMenu) {
     const el = document.createElement("div");
-    el.className = `node`;
+    el.className = `node node--${node.status}`;
     el.dataset.id = node.id;
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
-    
-    const gapTotal = Math.max(0, node.w - 1) * 1;
-    const paddingTotal = 8; 
-    const exactWidth = (node.w * CELL_SIZE) + gapTotal + paddingTotal;
+
+    const exactWidth = node.w * CELL_SIZE + (node.w - 1) + 8;
+    const exactHeight = node.h * CELL_SIZE + (node.h - 1);
     el.style.width = `${exactWidth}px`;
-    
+
     el.innerHTML = `
-      <div class="node__bar"></div>
+      <div class="node__bar">
+        <div class="node__bar-left">
+          <div class="node__status-dot"></div>
+          <div class="goink-select" id="diff-select-${node.id}">
+            <div class="goink-select__trigger">
+              <span class="goink-select__label">--</span>
+              <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="4" fill="none"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="goink-select__menu"></div>
+          </div>
+          <span>#${node.id}</span>
+        </div>
+        <div class="node__bomb-counter">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span class="bomb-val">--</span>
+        </div>
+      </div>
       <div class="node__grid">
         <canvas class="node__canvas"></canvas>
+        <canvas class="node__ui-layer"></canvas>
       </div>
     `;
 
-    const canvas = el.querySelector(".node__canvas");
-    const dpr = window.devicePixelRatio || 1;
-    const canvasW = (exactWidth - 8);
-    const canvasH = (node.h * CELL_SIZE + Math.max(0, node.h - 1));
-    
-    canvas.width = canvasW * dpr;
-    canvas.height = canvasH * dpr;
-    canvas.style.width = `${canvasW}px`;
-    canvas.style.height = `${canvasH}px`;
+    this.setupCustomSelect(el, node, worker);
 
-    // Only intercept Left-Clicks for cell interaction
-    canvas.onmousedown = (e) => {
-      if (e.button !== 0) return; 
-      e.stopPropagation();
-      const { col, row } = this.getGridCoords(e, canvas, node);
+    const workerCanvas = el.querySelector(".node__canvas");
+    workerCanvas.width = exactWidth - 8;
+    workerCanvas.height = exactHeight;
+
+    const offscreen = workerCanvas.transferControlToOffscreen();
+    worker.postMessage(
+      {
+        type: "INIT_NODE",
+        data: {
+          id: node.id,
+          w: node.w,
+          h: node.h,
+          nodeType: node.type,
+          difficulty: node.difficulty || 'MEDIUM',
+          auto: node.auto,
+          gridData: node.grid,
+          canvas: offscreen,
+          status: node.status,
+          revealedCount: node.revealedCount
+        },
+      },
+      [offscreen]
+    );
+
+    const uiCanvas = el.querySelector(".node__ui-layer");
+    uiCanvas.width = exactWidth - 8;
+    uiCanvas.height = exactHeight;
+    uiCanvas.style.width = `${workerCanvas.width}px`;
+    uiCanvas.style.height = `${workerCanvas.height}px`;
+
+    const ctx = uiCanvas.getContext("2d");
+    const styles = getComputedStyle(document.body);
+    const highlightColor = "rgba(255, 255, 255, 0.3)";
+    const borderColor = styles.getPropertyValue("--color-primary").trim();
+
+    uiCanvas.addEventListener("mousemove", (e) => {
+      ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+      const col = Math.floor(e.offsetX / (CELL_SIZE + 1));
+      const row = Math.floor(e.offsetY / (CELL_SIZE + 1));
       if (col >= 0 && col < node.w && row >= 0 && row < node.h) {
-        onCellClick(node, row * node.w + col);
+        const x = col * (CELL_SIZE + 1);
+        const y = row * (CELL_SIZE + 1);
+        ctx.fillStyle = highlightColor;
+        ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
       }
-    };
+    });
 
-    canvas.onmousemove = (e) => {
-      const { col, row } = this.getGridCoords(e, canvas, node);
-      if (col >= 0 && col < node.w && row >= 0 && row < node.h) {
-        this.hoveredNodes.set(node.id, row * node.w + col);
-      } else {
-        this.hoveredNodes.delete(node.id);
-      }
-    };
+    uiCanvas.addEventListener("mouseleave", () => ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height));
 
-    canvas.onmouseleave = () => this.hoveredNodes.delete(node.id);
-    
-    return el;
-  }
-
-  static update(el, node, onReset) {
-    const currentStatus = `node node--${node.status}`;
-    if (el.className !== currentStatus) el.className = currentStatus;
-
-    const bar = el.querySelector(".node__bar");
-    const barHtml = `
-      <div style="display:flex; align-items:center;">
-        <div class="node__status-dot ${node.auto ? 'node__status-dot--active' : ''}"></div>
-        <span>${node.type.toUpperCase()} #${node.id}</span>
-      </div>
-    `;
-    if (bar.innerHTML !== barHtml) bar.innerHTML = barHtml;
-
-    const canvas = el.querySelector(".node__canvas");
-    const ctx = canvas.getContext('2d', { alpha: false });
-    const dpr = window.devicePixelRatio || 1;
-
-    if (!this.colorCache) this.refreshColorCache();
-
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    
-    const currentHoverIdx = this.hoveredNodes.get(node.id);
-
-    node.grid.forEach((c, i) => {
-      const col = i % node.w;
-      const row = Math.floor(i / node.w);
-      const x = col * (CELL_SIZE + 1);
-      const y = row * (CELL_SIZE + 1);
-
-      ctx.fillStyle = c.r ? this.colorCache.surfaceAlt : this.colorCache.surface;
-      ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
-
-      // Draw interactive hover highlight
-      if (i === currentHoverIdx && !c.r && node.status === 'active') {
-          ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-          ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
-          ctx.strokeStyle = this.colorCache.primary;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
-      }
-
-      if (c.r) {
-        if (c.m) {
-          ctx.fillStyle = this.colorCache.danger;
-          ctx.beginPath();
-          ctx.arc(x + 10, y + 10, 4, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (c.v > 0) {
-          ctx.fillStyle = this.getNumberColor(c.v);
-          ctx.font = "900 13px sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(c.v, x + 10, y + 10.5);
+    uiCanvas.addEventListener("mousedown", (e) => {
+      if (e.button === 0) {
+        e.stopPropagation();
+        const col = Math.floor(e.offsetX / (CELL_SIZE + 1));
+        const row = Math.floor(e.offsetY / (CELL_SIZE + 1));
+        if (col >= 0 && col < node.w && row >= 0 && row < node.h) {
+          worker.postMessage({
+            type: "CLICK_CELL",
+            data: { nodeId: node.id, cellIdx: row * node.w + col },
+          });
         }
       }
     });
-    ctx.restore();
 
-    this.updateOverlay(el, node, onReset);
-  }
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onContextMenu(e, node);
+    });
 
-  static getNumberColor(v) {
-    if (v === 1) return this.colorCache.blue;
-    if (v === 2) return this.colorCache.green;
-    if (v === 3) return this.colorCache.danger;
-    return "#9b5de5";
+    this.updateOverlay(el, node, worker);
+    return el;
   }
 
   /**
-   * Manages the "Win/Loss" overlay visibility and button logic.
-   * @param {Function} onReset - Function to call for re-initialization.
+   * Logic for the custom GoinkSelect component.
+   * Uses mousedown to ensure priority over global window listeners.
    */
-  static updateOverlay(el, node, onReset) {
+  static setupCustomSelect(el, node, worker) {
+    const select = el.querySelector(".goink-select");
+    const trigger = select.querySelector(".goink-select__trigger");
+    const menu = select.querySelector(".goink-select__menu");
+    const label = select.querySelector(".goink-select__label");
+
+    const updateUI = (currentDiff) => {
+      const diffDef = DIFFICULTIES[currentDiff];
+      if (!diffDef) return;
+      
+      label.innerText = currentDiff;
+      trigger.style.color = diffDef.color;
+      trigger.style.borderColor = diffDef.color;
+      
+      menu.innerHTML = "";
+      Object.keys(DIFFICULTIES).forEach((key) => {
+        const opt = document.createElement("div");
+        const optDef = DIFFICULTIES[key];
+        opt.className = "goink-select__option";
+        if (key === currentDiff) opt.classList.add("goink-select__option--selected");
+        opt.style.color = optDef.color;
+        opt.innerText = key;
+        
+        opt.onmousedown = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          worker.postMessage({
+            type: "CHANGE_DIFFICULTY",
+            data: { nodeId: node.id, difficulty: key },
+          });
+          select.classList.remove("goink-select--open");
+        };
+        menu.appendChild(opt);
+      });
+    };
+
+    trigger.onmousedown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = select.classList.contains("goink-select--open");
+      document.querySelectorAll('.goink-select--open').forEach(s => s.classList.remove('goink-select--open'));
+      if (!isOpen) select.classList.add("goink-select--open");
+    };
+
+    updateUI(node.difficulty || "MEDIUM");
+    el._syncDifficulty = updateUI;
+  }
+
+  static updateOverlay(el, node, worker) {
     let overlay = el.querySelector(".node__overlay");
+    el.className = `node node--${node.status}`;
+
+    const bombSpan = el.querySelector(".bomb-val");
+    if (bombSpan && node.mines !== undefined) {
+      bombSpan.innerText = node.mines;
+    }
+
+    if (el._syncDifficulty && node.difficulty) {
+      el._syncDifficulty(node.difficulty);
+    }
+
+    const dot = el.querySelector('.node__status-dot');
+    if (dot) {
+      dot.className = node.auto ? 'node__status-dot node__status-dot--active' : 'node__status-dot';
+    }
+
     if (node.status === "goinked" || node.status === "cleared") {
       if (!overlay) {
         overlay = document.createElement("div");
@@ -177,22 +195,22 @@ export class NodeComponent {
       }
       
       const isWin = node.status === "cleared";
-      const bonus = NODE_TYPES[node.type].mult * (node.w * node.h) * 5;
+      const typeDef = NODE_TYPES[node.type];
+      const diffDef = DIFFICULTIES[node.difficulty] || DIFFICULTIES.MEDIUM;
+      const bonusEstimate = typeDef ? Math.floor(typeDef.mult * node.w * node.h * 5 * diffDef.mult) : 0;
       
       const newHtml = `
-        <span class="node__status-text">${isWin ? 'SUCCESS' : 'GOINKED'}</span>
-        ${isWin ? `<span class="node__reward-text">+${bonus.toLocaleString()} GP</span>` : ''}
-        <button class="node__reset-btn">${isWin ? 'READY' : 'RE-INITIALIZE'}</button>
+        <span class="node__status-text" style="color:${diffDef.color}">${isWin ? 'SUCCESS' : 'GOINKED'}</span>
+        ${isWin ? `<span class="node__reward-text">+${bonusEstimate.toLocaleString()} GP</span>` : ''}
+        <button class="node__reset-btn" style="background:${diffDef.color}">${isWin ? 'READY' : 'RE-INITIALIZE'}</button>
       `;
       
       if (overlay.innerHTML !== newHtml) {
         overlay.innerHTML = newHtml;
         const btn = overlay.querySelector(".node__reset-btn");
-        // Bind the specific onReset callback passed from the parent
         btn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onReset(node);
+          e.preventDefault(); e.stopPropagation();
+          worker.postMessage({ type: 'RESET_NODE', data: { nodeId: node.id } });
         };
       }
     } else if (overlay) {
