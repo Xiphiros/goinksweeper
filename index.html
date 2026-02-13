@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOINKSWEEPER</title>
+    <style>
+        :root {
+            --bg: #313338;
+            --surface: #2b2d31;
+            --revealed: #1e1f22;
+            --text: #dbdee1;
+            --primary: #ff66aa;
+            --border: #1e1f22;
+        }
+
+        .goink-app--light {
+            --bg: #f2f3f5;
+            --surface: #ffffff;
+            --revealed: #e3e5e8;
+            --text: #2e3338;
+            --border: #c4c9ce;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .goink-app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            max-width: 100vw;
+        }
+
+        .goink-app__title {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin: 0 0 20px 0;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        .goink-app__controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: var(--surface);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            justify-content: center;
+        }
+
+        .goink-app__field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .goink-app__label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .goink-app__input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px;
+            border-radius: 4px;
+            width: 60px;
+        }
+
+        .goink-app__button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .goink-app__button--secondary {
+            background: var(--revealed);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .goink-app__grid {
+            display: grid;
+            gap: 4px;
+            background: var(--border);
+            padding: 4px;
+            border-radius: 4px;
+            overflow: auto;
+            max-width: 90vw;
+        }
+
+        .goink-app__cell {
+            width: 35px;
+            height: 35px;
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 2px;
+            user-select: none;
+        }
+
+        .goink-app__cell--revealed {
+            background: var(--revealed);
+            cursor: default;
+        }
+
+        .goink-app__cell--goink img {
+            width: 80%;
+            height: 80%;
+        }
+
+        .goink-app__cell--n1 { color: #00a8fc; }
+        .goink-app__cell--n2 { color: #3ba55c; }
+        .goink-app__cell--n3 { color: #ed4245; }
+        .goink-app__cell--n4 { color: #5865f2; }
+    </style>
+</head>
+<body id="body" class="goink-app--dark">
+
+    <main class="goink-app">
+        <h1 class="goink-app__title">GoinkSweeper</h1>
+
+        <div class="goink-app__controls">
+            <div class="goink-app__field-group">
+                <label class="goink-app__label">Width</label>
+                <input type="number" id="width" class="goink-app__input" value="10" min="5" max="30">
+            </div>
+            <div class="goink-app__field-group">
+                <label class="goink-app__label">Height</label>
+                <input type="number" id="height" class="goink-app__input" value="10" min="5" max="30">
+            </div>
+            <div class="goink-app__field-group">
+                <label class="goink-app__label">Goinks</label>
+                <input type="number" id="count" class="goink-app__input" value="15" min="1">
+            </div>
+            <button class="goink-app__button" onclick="initGame()">New Game</button>
+            <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Theme</button>
+        </div>
+
+        <div id="grid" class="goink-app__grid"></div>
+    </main>
+
+    <script>
+        let board = [];
+        let revealedCells = 0;
+        let isGameOver = false;
+
+        function toggleMode() {
+            const body = document.getElementById('body');
+            body.classList.toggle('goink-app--light');
+        }
+
+        function initGame() {
+            const w = parseInt(document.getElementById('width').value);
+            const h = parseInt(document.getElementById('height').value);
+            let g = parseInt(document.getElementById('count').value);
+            
+            g = Math.min(g, (w * h) - 1);
+            
+            const gridEl = document.getElementById('grid');
+            gridEl.style.gridTemplateColumns = `repeat(${w}, 35px)`;
+            gridEl.innerHTML = '';
+            
+            board = [];
+            revealedCells = 0;
+            isGameOver = false;
+
+            for (let y = 0; y < h; y++) {
+                board[y] = [];
+                for (let x = 0; x < w; x++) {
+                    board[y][x] = { isGoink: false, revealed: false, n: 0, x, y };
+                }
+            }
+
+            let placed = 0;
+            while (placed < g) {
+                let rx = Math.floor(Math.random() * w);
+                let ry = Math.floor(Math.random() * h);
+                if (!board[ry][rx].isGoink) {
+                    board[ry][rx].isGoink = true;
+                    placed++;
+                }
+            }
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    if (board[y][x].isGoink) continue;
+                    let count = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            let ny = y + dy, nx = x + dx;
+                            if (ny >= 0 && ny < h && nx >= 0 && nx < w && board[ny][nx].isGoink) count++;
+                        }
+                    }
+                    board[y][x].n = count;
+                }
+            }
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'goink-app__cell';
+                    cell.id = `c-${x}-${y}`;
+                    cell.onclick = () => reveal(x, y);
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function reveal(x, y) {
+            const w = parseInt(document.getElementById('width').value);
+            const h = parseInt(document.getElementById('height').value);
+            const g = parseInt(document.getElementById('count').value);
+
+            if (isGameOver || board[y][x].revealed) return;
+
+            const cellData = board[y][x];
+            const cellEl = document.getElementById(`c-${x}-${y}`);
+            
+            cellData.revealed = true;
+            cellEl.classList.add('goink-app__cell--revealed');
+
+            if (cellData.isGoink) {
+                cellEl.classList.add('goink-app__cell--goink');
+                cellEl.innerHTML = '<img src="goink.png">';
+                endGame(false);
+                return;
+            }
+
+            revealedCells++;
+            if (cellData.n > 0) {
+                cellEl.textContent = cellData.n;
+                cellEl.classList.add(`goink-app__cell--n${cellData.n}`);
+            } else {
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        let ny = y + dy, nx = x + dx;
+                        if (ny >= 0 && ny < h && nx >= 0 && nx < w) reveal(nx, ny);
+                    }
+                }
+            }
+
+            if (revealedCells === (w * h) - g) endGame(true);
+        }
+
+        function endGame(win) {
+            isGameOver = true;
+            board.forEach(row => row.forEach(c => {
+                if (c.isGoink) {
+                    const el = document.getElementById(`c-${c.x}-${c.y}`);
+                    el.classList.add('goink-app__cell--revealed', 'goink-app__cell--goink');
+                    el.innerHTML = '<img src="goink.png">';
+                }
+            }));
+            setTimeout(() => alert(win ? "VICTORY GOINK" : "GOINKED"), 100);
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
