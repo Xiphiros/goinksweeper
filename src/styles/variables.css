@@ -1,16 +1,41 @@
 :root {
-  --color-bg: #101010;
-  --color-surface: #1a1a1a;
-  --color-border: #333;
-  --color-primary: #ff66aa;
-  --color-primary-dim: #993d66;
-  --color-text: #e0e0e0;
-  --color-accent-cyan: #00f0f0;
-  --color-accent-yellow: #f0f000;
-  --color-danger: #ff4444;
-
-  --font-main: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  --font-mono: monospace;
+  /* LIGHT MODE (Goink Strawberry) */
+  --color-bg: #fff0f3;
+  --color-surface: #ffccd5;
+  --color-surface-alt: #ffffff;
+  --color-border: #ff758f;
+  --color-primary: #ff4d6d;
+  --color-primary-glow: rgba(255, 77, 109, 0.4);
+  --color-primary-dim: #c9184a;
+  --color-text: #590d22;
+  --color-text-dim: #8a3c50;
+  --color-accent-green: #2dce89;
+  --color-accent-blue: #00b4d8;
+  --color-danger: #e63946;
   
+  --bg-filter: sepia(0.2) hue-rotate(-10deg) brightness(0.9) saturate(1.4) blur(2px);
+  --font-main: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Courier New", monospace;
   --header-height: 60px;
+  
+  /* Initial state for dynamic background */
+  --dynamic-bg-url: url('../../bg.jpg');
+}
+
+body[data-theme='dark'] {
+  /* DARK MODE (Goink Midnight) */
+  --color-bg: #1a0a0f;
+  --color-surface: #38040e;
+  --color-surface-alt: #25030a;
+  --color-border: #800f2f;
+  --color-primary: #ff4d6d;
+  --color-primary-glow: rgba(255, 77, 109, 0.6);
+  --color-primary-dim: #ff85a1;
+  --color-text: #fff0f3;
+  --color-text-dim: #ffccd5;
+  --color-accent-green: #38ef7d;
+  --color-accent-blue: #48cae4;
+  --color-danger: #ff4d6d;
+  
+  --bg-filter: brightness(0.4) saturate(0.6) blur(6px);
 }

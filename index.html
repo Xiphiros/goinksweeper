@@ -8,54 +8,88 @@
     <link rel="stylesheet" href="src/styles/layout.css" />
     <link rel="stylesheet" href="src/styles/node.css" />
     <link rel="stylesheet" href="src/styles/market.css" />
-    <style>
-      .header__actions { display: flex; gap: 10px; align-items: center; }
-      .header__actions-auto { 
-        display: none; 
-        gap: 5px; 
-        border-right: 1px solid #444; 
-        padding-right: 15px; 
-        margin-right: 5px; 
-      }
-      .btn-util {
-        background: #222;
-        color: #888;
-        border: 1px solid #444;
-        padding: 5px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 11px;
-        text-transform: uppercase;
-        font-weight: bold;
-      }
-      .btn-util:hover { background: #333; color: white; }
-      .btn-util--active { background: var(--color-primary-dim); color: white; border-color: var(--color-primary); }
-      .btn-util--danger:hover { background: var(--color-danger); border-color: var(--color-danger); }
-    </style>
+    <link rel="stylesheet" href="src/styles/home.css" />
   </head>
-  <body>
-    <header class="header">
-      <div class="header__stats-group">
-        <div class="header__stat">
-          <span class="header__stat-label">Goink Points</span>
-          <span id="disp-gp" class="header__stat-value">0</span>
+  <body data-theme="light">
+    <div id="home-screen" class="home-screen">
+      <div class="home-screen__content">
+        <div class="home-screen__logo-container">
+          <img src="goink.png" alt="GOINK" class="home-screen__logo" />
         </div>
-        <div class="header__stat">
-          <span class="header__stat-label">Logic Fidelity</span>
-          <span id="disp-acc" class="header__stat-value header__stat-value--secondary">0%</span>
+        <h1 class="home-screen__title">GOINKSWEEPER</h1>
+        <button id="btn-start" class="home-screen__btn">GOINK!</button>
+      </div>
+    </div>
+
+    <header class="header">
+      <div class="header__left">
+        <button id="btn-menu" class="btn-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="header__stats-group">
+          <div class="header__stat">
+            <span class="header__stat-label">Goink Points</span>
+            <span id="disp-gp" class="header__stat-value">0</span>
+          </div>
+          <div class="header__stat">
+            <span class="header__stat-label">Logic Fidelity</span>
+            <span id="disp-acc" class="header__stat-value header__stat-value--secondary">0%</span>
+          </div>
         </div>
       </div>
       
       <div class="header__actions">
-        <div id="auto-controls" class="header__actions-auto">
-          <button id="btn-auto-all" class="btn-util">Auto All</button>
-          <button id="btn-auto-none" class="btn-util">Stop All</button>
-        </div>
-        <button id="btn-home" class="btn-util">Home</button>
-        <button id="btn-reset-data" class="btn-util btn-util--danger">Wipe Data</button>
         <button id="shop-toggle" class="header__market-btn">Goink Market</button>
       </div>
     </header>
+
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar__header">SYSTEM CONTROL</div>
+      
+      <div class="sidebar__section">
+        <label class="sidebar__label">Automation</label>
+        <div class="sidebar__row">
+          <button id="btn-auto-all" class="btn-util">Auto All</button>
+          <button id="btn-auto-none" class="btn-util">Stop All</button>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <label class="sidebar__label">Audio Levels</label>
+        <div class="sidebar__slider-group">
+          <div class="vol-row">
+            <span>BGM</span>
+            <input type="range" id="slider-bgm" min="0" max="1" step="0.01" value="0.5">
+          </div>
+          <div class="vol-row">
+            <span>SFX</span>
+            <input type="range" id="slider-sfx" min="0" max="1" step="0.01" value="1.0">
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <label class="sidebar__label">Environment</label>
+        <button id="btn-theme" class="btn-util btn-block">Toggle Mode</button>
+        <div class="sidebar__row">
+          <button id="btn-bg-toggle" class="btn-util">Toggle BG</button>
+          <button id="btn-bg-upload" class="btn-util">Set Image</button>
+        </div>
+        <button id="btn-bg-reset" class="btn-util btn-block">Restore Default BG</button>
+        <input type="file" id="input-bg-file" hidden accept="image/*">
+      </div>
+
+      <div class="sidebar__section">
+        <label class="sidebar__label">Workspace</label>
+        <button id="btn-rearrange" class="btn-util btn-block">Rearrange Grid</button>
+        <button id="btn-home" class="btn-util btn-block">Center View</button>
+      </div>
+
+      <div class="sidebar__section" style="margin-top: auto;">
+        <button id="btn-reset-data" class="btn-util btn-util--danger btn-block">Wipe Data</button>
+      </div>
+    </aside>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
     <div id="shop-panel" class="market">
       <div class="market__header">MARKETPLACE</div>

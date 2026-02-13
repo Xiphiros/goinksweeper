@@ -5,7 +5,15 @@ export class StateStore {
     this.gp = 0;
     this.registry = {}; 
     this.globalAuto = true;
+    this.theme = 'light';
+    this.bgEnabled = true;
+    this.bgUrl = '../../bg.jpg'; // Default value
     
+    this.volume = {
+      bgm: 0.5,
+      sfx: 1.0
+    };
+
     this.view = { x: -100, y: -100, scale: 1 };
     this.nodes = [];
     this.nextId = 0;
@@ -32,6 +40,10 @@ export class StateStore {
       gp: this.gp,
       registry: this.registry,
       globalAuto: this.globalAuto,
+      theme: this.theme,
+      bgEnabled: this.bgEnabled,
+      bgUrl: this.bgUrl,
+      volume: this.volume,
       view: this.view,
       nextId: this.nextId,
       nodes: this.nodes.map(n => ({
@@ -40,7 +52,11 @@ export class StateStore {
         revealedCount: n.revealedCount, auto: n.auto
       }))
     };
-    localStorage.setItem("goinksweeper_data", JSON.stringify(data));
+    try {
+      localStorage.setItem("goinksweeper_data", JSON.stringify(data));
+    } catch (e) {
+      console.warn("Storage quota exceeded. Custom background might be too large.");
+    }
   }
 
   load() {
@@ -51,6 +67,14 @@ export class StateStore {
       this.gp = loaded.gp || 0;
       this.registry = loaded.registry || {};
       this.globalAuto = loaded.globalAuto !== undefined ? loaded.globalAuto : true;
+      this.theme = loaded.theme || 'light';
+      this.bgEnabled = loaded.bgEnabled !== undefined ? loaded.bgEnabled : true;
+      this.bgUrl = loaded.bgUrl || '../../bg.jpg';
+      
+      if (loaded.volume) {
+        this.volume = loaded.volume;
+      }
+
       this.view = loaded.view || this.view;
       this.nextId = loaded.nextId || 0;
       this.nodes = (loaded.nodes || []).map(n => {
@@ -66,10 +90,6 @@ export class StateStore {
     return Math.floor(base * Math.pow(scale, currentCount));
   }
 
-  /**
-   * Returns the non-scaled base cost for a node type.
-   * Used for re-initialization penalties.
-   */
   getBaseNodeCost(typeKey) {
     const def = NODE_TYPES[typeKey];
     return def ? def.cost : 0;
@@ -94,6 +114,18 @@ export class StateStore {
 
   recordPurchase(id) {
     this.registry[id] = (this.registry[id] || 0) + 1;
+    this.save();
+  }
+
+  removeNode(nodeId) {
+    const index = this.nodes.findIndex(n => n.id === nodeId);
+    if (index === -1) return;
+    const node = this.nodes[index];
+    const typeKey = node.type;
+    const refund = Math.floor(this.getItemCost(typeKey) * 0.4);
+    this.gp += refund;
+    this.nodes.splice(index, 1);
+    if (this.registry[typeKey] > 0) this.registry[typeKey]--;
     this.save();
   }
 
