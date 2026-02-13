@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GOINKSWEEPER</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="src/styles/variables.css" />
     <link rel="stylesheet" href="src/styles/layout.css" />
     <link rel="stylesheet" href="src/styles/node.css" />
@@ -24,7 +25,7 @@
     <header class="header">
       <div class="header__left">
         <button id="btn-menu" class="btn-icon">
-          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          <i class="fa-solid fa-bars"></i>
         </button>
         <div class="header__stats-group">
           <div class="header__stat">
@@ -53,7 +54,9 @@
       </div>
       
       <div class="header__actions">
-        <button id="shop-toggle" class="header__market-btn">Goink Market</button>
+        <button id="shop-toggle" class="header__market-btn">
+          <i class="fa-solid fa-store" style="margin-right: 8px;"></i> Market
+        </button>
       </div>
     </header>
 

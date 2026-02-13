@@ -38,6 +38,10 @@ self.onmessage = function (e) {
       processInteraction(data.nodeId, data.cellIdx, false);
       break;
 
+    case "TOGGLE_FLAG":
+      toggleFlag(data.nodeId, data.cellIdx);
+      break;
+
     case "CHANGE_DIFFICULTY":
       const node = nodes.get(data.nodeId);
       if (node) {
@@ -145,7 +149,8 @@ function generateGrid(node) {
 
   const grid = [];
   for (let i = 0; i < total; i++) {
-    grid.push({ m: false, r: false, v: 0 });
+    // f: flagged
+    grid.push({ m: false, r: false, v: 0, f: false });
   }
 
   let placed = 0;
@@ -176,23 +181,37 @@ function generateGrid(node) {
   return grid;
 }
 
+function toggleFlag(nodeId, idx) {
+  const node = nodes.get(nodeId);
+  if (!node || node.status !== "active") return;
+  const cell = node.grid[idx];
+  
+  if (!cell || cell.r) return; // Cannot flag revealed cells
+
+  cell.f = !cell.f;
+  node.dirty = true;
+}
+
 function processInteraction(nodeId, idx, isAuto) {
   const node = nodes.get(nodeId);
   if (!node || node.status !== "active") return;
 
   const cell = node.grid[idx];
   if (!cell || cell.r) return;
+  if (cell.f && !isAuto) return; // Cannot reveal flagged cells (safety)
 
   // First click safety
   if (node.revealedCount === 0 && cell.m) {
     cell.m = false;
     node.grid = generateGrid(node);
+    // Persist flag if it was set before regen? No, reset it.
     node.dirty = true;
     processInteraction(nodeId, idx, isAuto);
     return;
   }
 
   cell.r = true;
+  cell.f = false; // Remove flag if revealed (e.g. via auto or logic force)
   node.revealedCount++;
   node.dirty = true;
 
@@ -268,7 +287,10 @@ function floodFill(node, startIdx) {
           if (!seen.has(ni)) {
             seen.add(ni);
             const cell = node.grid[ni];
-            if (!cell.r && !cell.m) {
+            // Don't auto-reveal flagged cells during floodfill? 
+            // Standard minesweeper: usually safely ignores flags if v=0.
+            // But let's assume flags protect the cell.
+            if (!cell.r && !cell.m && !cell.f) {
               cell.r = true;
               node.revealedCount++;
               if (cell.v === 0) stack.push(ni);
@@ -353,6 +375,17 @@ function render() {
           ctx.textBaseline = "middle";
           ctx.fillText(c.v, x + 10, y + 10.5);
         }
+      } else if (c.f) {
+        // Draw Flag
+        ctx.fillStyle = colors.danger || "red";
+        ctx.beginPath();
+        // Flag pole
+        ctx.rect(x + 5, y + 3, 2, 14);
+        // Triangle
+        ctx.moveTo(x + 7, y + 3);
+        ctx.lineTo(x + 15, y + 7);
+        ctx.lineTo(x + 7, y + 11);
+        ctx.fill();
       }
     });
 

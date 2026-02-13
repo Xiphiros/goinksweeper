@@ -131,6 +131,9 @@
   color: var(--color-text-dim);
   font-weight: 900;
 }
+.node__bomb-counter i {
+  font-size: 12px;
+}
 
 .node__status-dot {
   width: 10px;
@@ -190,6 +193,9 @@
   color: var(--color-primary);
   margin-bottom: 10px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .node__reward-text {
   color: var(--color-accent-green);

@@ -1,8 +1,13 @@
 import { NODE_TYPES, UPGRADE_DEFINITIONS } from "./constants.js";
 
+/**
+ * StateStore
+ * Pure data repository responsible for persistence and hydration.
+ */
 export class StateStore {
   constructor() {
-    this.gp = 0;
+    // Starting capital set to 50 to allow initial Tier-A cluster purchase.
+    this.gp = 50;
     this.registry = {};
     this.globalAuto = true;
     this.theme = "light";
@@ -68,7 +73,7 @@ export class StateStore {
         status: n.status,
         revealedCount: n.revealedCount,
         auto: n.auto,
-        difficulty: n.difficulty, // Persist difficulty setting
+        difficulty: n.difficulty,
       })),
     };
     try {
@@ -83,7 +88,7 @@ export class StateStore {
     if (!save) return;
     try {
       const loaded = JSON.parse(save);
-      this.gp = loaded.gp || 0;
+      this.gp = loaded.gp !== undefined ? loaded.gp : 50;
       this.registry = loaded.registry || {};
       this.globalAuto =
         loaded.globalAuto !== undefined ? loaded.globalAuto : true;
@@ -104,7 +109,7 @@ export class StateStore {
           w: n.w || def.w,
           h: n.h || def.h,
           mines: n.mines || def.m,
-          difficulty: n.difficulty || "MEDIUM", // Hydrate difficulty
+          difficulty: n.difficulty || "MEDIUM",
           dirty: true,
         };
       });
@@ -115,11 +120,6 @@ export class StateStore {
 
   calculateCost(base, scale, currentCount) {
     return Math.floor(base * Math.pow(scale, currentCount));
-  }
-
-  getBaseNodeCost(typeKey) {
-    const def = NODE_TYPES[typeKey];
-    return def ? def.cost : 0;
   }
 
   getItemCost(id) {
@@ -137,45 +137,6 @@ export class StateStore {
       return this.calculateCost(nodeDef.cost, scaling, count);
     }
     return 0;
-  }
-
-  recordPurchase(id) {
-    this.registry[id] = (this.registry[id] || 0) + 1;
-    this.save();
-  }
-
-  removeNode(nodeId) {
-    const index = this.nodes.findIndex((n) => n.id === nodeId);
-    if (index === -1) return;
-    const node = this.nodes[index];
-    const typeKey = node.type;
-    const refund = Math.floor(this.getItemCost(typeKey) * 0.4);
-    this.gp += refund;
-    this.nodes.splice(index, 1);
-    if (this.registry[typeKey] > 0) this.registry[typeKey]--;
-    this.save();
-  }
-
-  addNode(typeKey, x, y) {
-    const def = NODE_TYPES[typeKey];
-    const node = {
-      id: this.nextId++,
-      type: typeKey,
-      x,
-      y,
-      w: def.w,
-      h: def.h,
-      mines: def.m,
-      grid: [],
-      status: "active",
-      revealedCount: 0,
-      auto: false,
-      difficulty: "MEDIUM", // Default difficulty for new nodes
-      dirty: true,
-    };
-    this.nodes.push(node);
-    this.recordPurchase(typeKey);
-    return node;
   }
 }
 

@@ -1,9 +1,27 @@
 import { CELL_SIZE, NODE_TYPES, DIFFICULTIES } from "../core/constants.js";
 
+const hoverState = {
+  nodeId: null,
+  cellIdx: -1,
+  worker: null,
+};
+
+window.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "f") {
+    if (
+      hoverState.nodeId !== null &&
+      hoverState.cellIdx !== -1 &&
+      hoverState.worker
+    ) {
+      hoverState.worker.postMessage({
+        type: "TOGGLE_FLAG",
+        data: { nodeId: hoverState.nodeId, cellIdx: hoverState.cellIdx },
+      });
+    }
+  }
+});
+
 export class NodeComponent {
-  /**
-   * Creates the DOM element with custom UI components.
-   */
   static createBase(node, worker, onContextMenu) {
     const el = document.createElement("div");
     el.className = `node node--${node.status}`;
@@ -22,14 +40,14 @@ export class NodeComponent {
           <div class="goink-select" id="diff-select-${node.id}">
             <div class="goink-select__trigger">
               <span class="goink-select__label">--</span>
-              <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="4" fill="none"><path d="M6 9l6 6 6-6"/></svg>
+              <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
             </div>
             <div class="goink-select__menu"></div>
           </div>
           <span>#${node.id}</span>
         </div>
         <div class="node__bomb-counter">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <i class="fa-solid fa-bomb"></i>
           <span class="bomb-val">--</span>
         </div>
       </div>
@@ -54,22 +72,20 @@ export class NodeComponent {
           w: node.w,
           h: node.h,
           nodeType: node.type,
-          difficulty: node.difficulty || 'MEDIUM',
+          difficulty: node.difficulty || "MEDIUM",
           auto: node.auto,
           gridData: node.grid,
           canvas: offscreen,
           status: node.status,
-          revealedCount: node.revealedCount
+          revealedCount: node.revealedCount,
         },
       },
-      [offscreen]
+      [offscreen],
     );
 
     const uiCanvas = el.querySelector(".node__ui-layer");
     uiCanvas.width = exactWidth - 8;
     uiCanvas.height = exactHeight;
-    uiCanvas.style.width = `${workerCanvas.width}px`;
-    uiCanvas.style.height = `${workerCanvas.height}px`;
 
     const ctx = uiCanvas.getContext("2d");
     const styles = getComputedStyle(document.body);
@@ -80,18 +96,29 @@ export class NodeComponent {
       ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
       const col = Math.floor(e.offsetX / (CELL_SIZE + 1));
       const row = Math.floor(e.offsetY / (CELL_SIZE + 1));
+
       if (col >= 0 && col < node.w && row >= 0 && row < node.h) {
         const x = col * (CELL_SIZE + 1);
         const y = row * (CELL_SIZE + 1);
         ctx.fillStyle = highlightColor;
         ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
         ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+
+        hoverState.nodeId = node.id;
+        hoverState.cellIdx = row * node.w + col;
+        hoverState.worker = worker;
       }
     });
 
-    uiCanvas.addEventListener("mouseleave", () => ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height));
+    uiCanvas.addEventListener("mouseleave", () => {
+      ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+      if (hoverState.nodeId === node.id) {
+        hoverState.nodeId = null;
+        hoverState.cellIdx = -1;
+        hoverState.worker = null;
+      }
+    });
 
     uiCanvas.addEventListener("mousedown", (e) => {
       if (e.button === 0) {
@@ -110,17 +137,17 @@ export class NodeComponent {
     el.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onContextMenu(e, node);
+      onContextMenu(
+        e,
+        node,
+        hoverState.nodeId === node.id ? hoverState.cellIdx : -1,
+      );
     });
 
     this.updateOverlay(el, node, worker);
     return el;
   }
 
-  /**
-   * Logic for the custom GoinkSelect component.
-   * Uses mousedown to ensure priority over global window listeners.
-   */
   static setupCustomSelect(el, node, worker) {
     const select = el.querySelector(".goink-select");
     const trigger = select.querySelector(".goink-select__trigger");
@@ -130,20 +157,20 @@ export class NodeComponent {
     const updateUI = (currentDiff) => {
       const diffDef = DIFFICULTIES[currentDiff];
       if (!diffDef) return;
-      
+
       label.innerText = currentDiff;
       trigger.style.color = diffDef.color;
       trigger.style.borderColor = diffDef.color;
-      
+
       menu.innerHTML = "";
       Object.keys(DIFFICULTIES).forEach((key) => {
         const opt = document.createElement("div");
-        const optDef = DIFFICULTIES[key];
         opt.className = "goink-select__option";
-        if (key === currentDiff) opt.classList.add("goink-select__option--selected");
-        opt.style.color = optDef.color;
+        if (key === currentDiff)
+          opt.classList.add("goink-select__option--selected");
+        opt.style.color = DIFFICULTIES[key].color;
         opt.innerText = key;
-        
+
         opt.onmousedown = (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -161,7 +188,9 @@ export class NodeComponent {
       e.preventDefault();
       e.stopPropagation();
       const isOpen = select.classList.contains("goink-select--open");
-      document.querySelectorAll('.goink-select--open').forEach(s => s.classList.remove('goink-select--open'));
+      document
+        .querySelectorAll(".goink-select--open")
+        .forEach((s) => s.classList.remove("goink-select--open"));
       if (!isOpen) select.classList.add("goink-select--open");
     };
 
@@ -169,23 +198,38 @@ export class NodeComponent {
     el._syncDifficulty = updateUI;
   }
 
+  /**
+   * updateOverlay
+   * Standard Game-Logic: Uses status caching to prevent layout thrashing.
+   * Only rebuilds DOM when status or difficulty actually changes.
+   */
   static updateOverlay(el, node, worker) {
+    // 1. Cache Check: Compare against last known state stored on the element
+    if (
+      el._lastStatus === node.status &&
+      el._lastDiff === node.difficulty &&
+      el._lastAuto === node.auto &&
+      el._lastMines === node.mines
+    ) {
+      return;
+    }
+
+    // 2. State Sync: Meta-data updates
+    const bombSpan = el.querySelector(".bomb-val");
+    if (bombSpan) bombSpan.innerText = node.mines || 0;
+
+    const dot = el.querySelector(".node__status-dot");
+    if (dot) {
+      dot.className = node.auto
+        ? "node__status-dot node__status-dot--active"
+        : "node__status-dot";
+    }
+
+    if (el._syncDifficulty) el._syncDifficulty(node.difficulty);
+
+    // 3. Overlay Stability logic
     let overlay = el.querySelector(".node__overlay");
     el.className = `node node--${node.status}`;
-
-    const bombSpan = el.querySelector(".bomb-val");
-    if (bombSpan && node.mines !== undefined) {
-      bombSpan.innerText = node.mines;
-    }
-
-    if (el._syncDifficulty && node.difficulty) {
-      el._syncDifficulty(node.difficulty);
-    }
-
-    const dot = el.querySelector('.node__status-dot');
-    if (dot) {
-      dot.className = node.auto ? 'node__status-dot node__status-dot--active' : 'node__status-dot';
-    }
 
     if (node.status === "goinked" || node.status === "cleared") {
       if (!overlay) {
@@ -193,28 +237,32 @@ export class NodeComponent {
         overlay.className = "node__overlay";
         el.appendChild(overlay);
       }
-      
+
       const isWin = node.status === "cleared";
-      const typeDef = NODE_TYPES[node.type];
       const diffDef = DIFFICULTIES[node.difficulty] || DIFFICULTIES.MEDIUM;
-      const bonusEstimate = typeDef ? Math.floor(typeDef.mult * node.w * node.h * 5 * diffDef.mult) : 0;
-      
-      const newHtml = `
-        <span class="node__status-text" style="color:${diffDef.color}">${isWin ? 'SUCCESS' : 'GOINKED'}</span>
-        ${isWin ? `<span class="node__reward-text">+${bonusEstimate.toLocaleString()} GP</span>` : ''}
-        <button class="node__reset-btn" style="background:${diffDef.color}">${isWin ? 'READY' : 'RE-INITIALIZE'}</button>
+
+      // CRITICAL: We only overwrite innerHTML once per status change
+      overlay.innerHTML = `
+        <span class="node__status-text" style="color:${diffDef.color}">
+          ${isWin ? '<i class="fa-solid fa-check-circle"></i> SUCCESS' : '<i class="fa-solid fa-skull"></i> GOINKED'}
+        </span>
+        <button class="node__reset-btn" style="background:${diffDef.color}">RE-INITIALIZE</button>
       `;
-      
-      if (overlay.innerHTML !== newHtml) {
-        overlay.innerHTML = newHtml;
-        const btn = overlay.querySelector(".node__reset-btn");
-        btn.onclick = (e) => {
-          e.preventDefault(); e.stopPropagation();
-          worker.postMessage({ type: 'RESET_NODE', data: { nodeId: node.id } });
-        };
-      }
+
+      // Re-bind the stable click listener
+      overlay.querySelector(".node__reset-btn").onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        worker.postMessage({ type: "RESET_NODE", data: { nodeId: node.id } });
+      };
     } else if (overlay) {
       overlay.remove();
     }
+
+    // 4. Update Cache
+    el._lastStatus = node.status;
+    el._lastDiff = node.difficulty;
+    el._lastAuto = node.auto;
+    el._lastMines = node.mines;
   }
 }
