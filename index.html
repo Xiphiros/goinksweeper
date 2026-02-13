@@ -37,12 +37,34 @@
         }
 
         .goink-app {
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             padding: 20px;
             max-width: 100vw;
             z-index: 1;
+        }
+
+        .goink-app--visible {
+            display: flex;
+        }
+
+        .goink-app__splash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        .goink-app__splash--hidden {
+            display: none;
         }
 
         .goink-app__title {
@@ -99,11 +121,17 @@
             font-weight: bold;
             cursor: pointer;
             text-transform: uppercase;
-            transition: opacity 0.2s;
+            transition: transform 0.1s, opacity 0.2s;
         }
 
-        .goink-app__button:hover {
-            opacity: 0.9;
+        .goink-app__button:active {
+            transform: scale(0.95);
+        }
+
+        .goink-app__button--large {
+            padding: 20px 40px;
+            font-size: 1.5rem;
+            box-shadow: 0 0 20px var(--primary);
         }
 
         .goink-app__button--secondary {
@@ -136,10 +164,6 @@
             border-radius: 2px;
             user-select: none;
             font-size: 14px;
-        }
-
-        .goink-app__cell:hover:not(.goink-app__cell--revealed) {
-            background: #404249;
         }
 
         .goink-app__cell--revealed {
@@ -197,6 +221,11 @@
 
     <audio id="bg-music" src="ctype.mp3" loop></audio>
 
+    <div id="splash" class="goink-app__splash">
+        <h1 class="goink-app__title">GoinkSweeper</h1>
+        <button class="goink-app__button goink-app__button--large" onclick="startGame()">Start Goink</button>
+    </div>
+
     <div id="modal" class="goink-modal">
         <div class="goink-modal__content">
             <div id="modal-text" class="goink-modal__text"></div>
@@ -204,7 +233,7 @@
         </div>
     </div>
 
-    <main class="goink-app">
+    <main id="app" class="goink-app">
         <h1 class="goink-app__title">GoinkSweeper</h1>
 
         <div class="goink-app__controls">
@@ -220,7 +249,7 @@
                 <label class="goink-app__label">Goinks</label>
                 <input type="number" id="count" class="goink-app__input" value="12" min="1">
             </div>
-            <button class="goink-app__button" onclick="initGame()">Goink!</button>
+            <button class="goink-app__button" onclick="initGame()">New Game</button>
             <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Theme</button>
         </div>
 
@@ -233,6 +262,13 @@
         let isGameOver = false;
         const music = document.getElementById('bg-music');
 
+        function startGame() {
+            music.play().catch(() => {});
+            document.getElementById('splash').classList.add('goink-app__splash--hidden');
+            document.getElementById('app').classList.add('goink-app--visible');
+            initGame();
+        }
+
         function toggleMode() {
             document.getElementById('body').classList.toggle('goink-app--light');
         }
@@ -243,12 +279,9 @@
         }
 
         function initGame() {
-            music.play().catch(() => {});
-            
             const w = parseInt(document.getElementById('width').value);
             const h = parseInt(document.getElementById('height').value);
             let g = parseInt(document.getElementById('count').value);
-            
             g = Math.min(g, (w * h) - 1);
             
             const gridEl = document.getElementById('grid');
@@ -350,8 +383,6 @@
                 }
             }));
         }
-
-        initGame();
     </script>
 </body>
 </html>
