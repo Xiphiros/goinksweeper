@@ -20,12 +20,17 @@ body {
 }
 
 .header__left { display: flex; align-items: center; gap: 20px; }
-.header__stats-group { display: flex; gap: 40px; }
+.header__stats-group { display: flex; gap: 30px; }
 
-.header__stat { display: flex; flex-direction: column; }
-.header__stat-label { font-size: 0.7rem; color: var(--color-text-dim); letter-spacing: 1px; text-transform: uppercase; font-weight: 800; }
-.header__stat-value { font-size: 1.4rem; font-weight: 900; font-family: var(--font-mono); color: var(--color-primary); }
+.header__stat { display: flex; flex-direction: column; justify-content: center; }
+.header__stat-label { font-size: 0.7rem; color: var(--color-text-dim); letter-spacing: 1px; text-transform: uppercase; font-weight: 800; line-height: 1; margin-bottom: 2px; }
+.header__stat-value { font-size: 1.4rem; font-weight: 900; font-family: var(--font-mono); color: var(--color-primary); line-height: 1; }
 .header__stat-value--secondary { color: var(--color-accent-green); }
+.header__stat-value--small { font-size: 1.1rem; }
+
+.header__stat--compact { min-width: 80px; }
+.header__sub-stat { display: flex; align-items: baseline; gap: 4px; }
+.header__unit { font-size: 0.7rem; font-weight: 700; color: var(--color-text-dim); }
 
 .btn-icon {
   background: transparent; border: none; color: var(--color-primary);
@@ -66,6 +71,10 @@ body {
 .sidebar__section { display: flex; flex-direction: column; gap: 10px; }
 .sidebar__label { font-size: 0.7rem; color: var(--color-text-dim); font-weight: 800; text-transform: uppercase; }
 .sidebar__row { display: flex; gap: 10px; }
+.sidebar__slider-group { display: flex; flex-direction: column; gap: 12px; }
+
+.vol-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 700; }
+input[type=range] { width: 100px; accent-color: var(--color-primary); }
 
 /* --- VIEWPORT --- */
 .viewport {

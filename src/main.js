@@ -8,6 +8,7 @@ import { ViewportManager } from './ui/viewport.js';
 import { ContextMenu } from './ui/contextMenu.js';
 import { Modal } from './ui/modal.js';
 import { audio } from './engine/audio.js';
+import { telemetry } from './engine/telemetry.js';
 
 class GoinksweeperApp {
   constructor() {
@@ -284,6 +285,7 @@ class GoinksweeperApp {
     cell.r = true;
     node.revealedCount++;
     const def = NODE_TYPES[node.type];
+    let earnedGp = 0;
 
     if (cell.m) {
       node.status = "goinked";
@@ -291,25 +293,42 @@ class GoinksweeperApp {
       const timer = setTimeout(() => this.executeReset(node), LIFECYCLE.GOINKED_RESET_DELAY);
       this.resetTimers.set(node.id, timer);
     } else {
-      state.gp += def.mult * state.getOwned('manualMult');
+      earnedGp = def.mult * state.getOwned('manualMult');
+      state.gp += earnedGp;
       audio.playNote(cell.v);
       if (cell.v === 0) GridEngine.floodFill(node, idx);
+      
       if (node.revealedCount === (node.w * node.h) - node.mines) {
         node.status = "cleared";
-        state.gp += def.mult * (node.w * node.h) * 5;
+        const bonus = def.mult * (node.w * node.h) * 5;
+        state.gp += bonus;
+        earnedGp += bonus; // Count bonus towards telemetry
         audio.playSuccess(node.type);
         const timer = setTimeout(() => this.executeReset(node), LIFECYCLE.CLEARED_RESET_DELAY);
         this.resetTimers.set(node.id, timer);
       }
     }
+    
+    // Log telemetry for this action
+    telemetry.log(earnedGp, 1);
+    
     state.save();
   }
 
   startLoops() {
     const render = () => {
+      // General Stats
       document.getElementById("disp-gp").textContent = Math.floor(state.gp).toLocaleString();
       const accuracy = Autogoinker.getAccuracy(state.getOwned('autoAcc'));
       document.getElementById("disp-acc").textContent = `${(accuracy * 100).toFixed(1)}%`;
+      
+      // Telemetry Stats
+      const rates = telemetry.getRates();
+      // GPS: Use no decimals if > 100, else 1 decimal
+      const gpsDisplay = rates.gps > 100 ? Math.floor(rates.gps).toLocaleString() : rates.gps.toFixed(1);
+      document.getElementById("disp-gps").textContent = gpsDisplay;
+      document.getElementById("disp-rps").textContent = rates.rps.toFixed(1);
+
       const bounds = this.viewport.getVisibleBounds();
       const visibleIds = new Set();
       state.nodes.forEach(node => {
