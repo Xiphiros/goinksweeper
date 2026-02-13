@@ -1,394 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GOINKSWEEPER</title>
+    <link rel="stylesheet" href="src/styles/variables.css" />
+    <link rel="stylesheet" href="src/styles/layout.css" />
+    <link rel="stylesheet" href="src/styles/node.css" />
+    <link rel="stylesheet" href="src/styles/market.css" />
     <style>
-        :root {
-            --bg: #313338;
-            --surface: #2b2d31;
-            --revealed: #1e1f22;
-            --text: #dbdee1;
-            --primary: #ff66aa;
-            --border: #1e1f22;
-            --modal-overlay: rgba(0, 0, 0, 0.9);
-        }
-
-        .goink-app--light {
-            --bg: #f2f3f5;
-            --surface: #ffffff;
-            --revealed: #e3e5e8;
-            --text: #2e3338;
-            --border: #c4c9ce;
-            --modal-overlay: rgba(0, 0, 0, 0.5);
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            overflow: hidden;
-        }
-
-        .goink-menu {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 30px;
-            z-index: 300;
-        }
-
-        .goink-menu--hidden {
-            display: none;
-        }
-
-        .goink-menu__logo {
-            width: 150px;
-            height: 150px;
-            filter: drop-shadow(0 0 20px var(--primary));
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
-        .goink-app {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            max-width: 100vw;
-            z-index: 1;
-        }
-
-        .goink-app--visible {
-            display: flex;
-        }
-
-        .goink-app__title {
-            color: var(--primary);
-            font-size: 3rem;
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: 6px;
-            text-shadow: 3px 3px var(--revealed);
-        }
-
-        .goink-app__controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 20px;
-            background: var(--surface);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-
-        .goink-app__field-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .goink-app__label {
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            opacity: 0.7;
-        }
-
-        .goink-app__input {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 8px;
-            border-radius: 4px;
-            width: 50px;
-            outline: none;
-        }
-
-        .goink-app__button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: transform 0.1s, box-shadow 0.2s;
-        }
-
-        .goink-app__button:active {
-            transform: scale(0.95);
-        }
-
-        .goink-app__button--play {
-            font-size: 2rem;
-            padding: 20px 60px;
-            box-shadow: 0 0 30px var(--primary);
-        }
-
-        .goink-app__button--secondary {
-            background: var(--revealed);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .goink-app__grid {
-            display: grid;
-            gap: 4px;
-            background: var(--border);
-            padding: 4px;
-            border-radius: 4px;
-            overflow: auto;
-            max-width: 90vw;
-            max-height: 65vh;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-        }
-
-        .goink-app__cell {
-            width: 32px;
-            height: 32px;
-            background: var(--surface);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 2px;
-            user-select: none;
-            font-size: 14px;
-        }
-
-        .goink-app__cell--revealed {
-            background: var(--revealed);
-            cursor: default;
-        }
-
-        .goink-app__cell--goink img {
-            width: 85%;
-            height: 85%;
-        }
-
-        .goink-app__cell--n1 { color: #00a8fc; }
-        .goink-app__cell--n2 { color: #3ba55c; }
-        .goink-app__cell--n3 { color: #ed4245; }
-        .goink-app__cell--n4 { color: #5865f2; }
-
-        .goink-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--modal-overlay);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 500;
-            backdrop-filter: blur(8px);
-        }
-
-        .goink-modal--visible {
-            display: flex;
-        }
-
-        .goink-modal__content {
-            background: var(--surface);
-            padding: 50px;
-            border-radius: 16px;
-            text-align: center;
-            border: 3px solid var(--primary);
-            box-shadow: 0 0 40px var(--primary);
-        }
-
-        .goink-modal__text {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-        }
+      .header__actions { display: flex; gap: 10px; align-items: center; }
+      .header__actions-auto { 
+        display: none; 
+        gap: 5px; 
+        border-right: 1px solid #444; 
+        padding-right: 15px; 
+        margin-right: 5px; 
+      }
+      .btn-util {
+        background: #222;
+        color: #888;
+        border: 1px solid #444;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+      .btn-util:hover { background: #333; color: white; }
+      .btn-util--active { background: var(--color-primary-dim); color: white; border-color: var(--color-primary); }
+      .btn-util--danger:hover { background: var(--color-danger); border-color: var(--color-danger); }
     </style>
-</head>
-<body id="body" class="goink-app--dark">
+  </head>
+  <body>
+    <header class="header">
+      <div class="header__stats-group">
+        <div class="header__stat">
+          <span class="header__stat-label">Goink Points</span>
+          <span id="disp-gp" class="header__stat-value">0</span>
+        </div>
+        <div class="header__stat">
+          <span class="header__stat-label">Logic Fidelity</span>
+          <span id="disp-acc" class="header__stat-value header__stat-value--secondary">0%</span>
+        </div>
+      </div>
+      
+      <div class="header__actions">
+        <div id="auto-controls" class="header__actions-auto">
+          <button id="btn-auto-all" class="btn-util">Auto All</button>
+          <button id="btn-auto-none" class="btn-util">Stop All</button>
+        </div>
+        <button id="btn-home" class="btn-util">Home</button>
+        <button id="btn-reset-data" class="btn-util btn-util--danger">Wipe Data</button>
+        <button id="shop-toggle" class="header__market-btn">Goink Market</button>
+      </div>
+    </header>
 
-    <audio id="bg-music" src="ctype.mp3" loop></audio>
-
-    <div id="menu" class="goink-menu">
-        <img src="goink.png" alt="Logo" class="goink-menu__logo">
-        <h1 class="goink-app__title">GoinkSweeper</h1>
-        <button class="goink-app__button goink-app__button--play" onclick="enterGoinkzone()">Goink!</button>
-        <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Toggle Theme</button>
+    <div id="shop-panel" class="market">
+      <div class="market__header">MARKETPLACE</div>
+      <div class="market__scroll-area" id="shop-list"></div>
     </div>
 
-    <div id="modal" class="goink-modal">
-        <div class="goink-modal__content">
-            <div id="modal-text" class="goink-modal__text"></div>
-            <button class="goink-app__button" onclick="closeModal()">Another Goink?</button>
-        </div>
-    </div>
-
-    <main id="app" class="goink-app">
-        <div class="goink-app__controls">
-            <div class="goink-app__field-group">
-                <label class="goink-app__label">W</label>
-                <input type="number" id="width" class="goink-app__input" value="10" min="5" max="40">
-            </div>
-            <div class="goink-app__field-group">
-                <label class="goink-app__label">H</label>
-                <input type="number" id="height" class="goink-app__input" value="10" min="5" max="40">
-            </div>
-            <div class="goink-app__field-group">
-                <label class="goink-app__label">Goinks</label>
-                <input type="number" id="count" class="goink-app__input" value="12" min="1">
-            </div>
-            <button class="goink-app__button" onclick="initGame()">Reset</button>
-            <button class="goink-app__button goink-app__button--secondary" onclick="toggleMode()">Theme</button>
-        </div>
-
-        <div id="grid" class="goink-app__grid"></div>
+    <main id="viewport" class="viewport">
+      <div id="world" class="viewport__world"></div>
     </main>
 
-    <script>
-        let board = [];
-        let revealedCells = 0;
-        let isGameOver = false;
-        const music = document.getElementById('bg-music');
+    <div id="ctx-menu" class="context-menu"></div>
+    <div id="modal-root"></div>
 
-        function enterGoinkzone() {
-            music.play().catch(() => {});
-            document.getElementById('menu').classList.add('goink-menu--hidden');
-            document.getElementById('app').classList.add('goink-app--visible');
-            initGame();
-        }
-
-        function toggleMode() {
-            document.getElementById('body').classList.toggle('goink-app--light');
-        }
-
-        function closeModal() {
-            document.getElementById('modal').classList.remove('goink-modal--visible');
-            initGame();
-        }
-
-        function initGame() {
-            const w = parseInt(document.getElementById('width').value);
-            const h = parseInt(document.getElementById('height').value);
-            let g = parseInt(document.getElementById('count').value);
-            g = Math.min(g, (w * h) - 1);
-            
-            const gridEl = document.getElementById('grid');
-            gridEl.style.gridTemplateColumns = `repeat(${w}, 32px)`;
-            gridEl.innerHTML = '';
-            
-            board = [];
-            revealedCells = 0;
-            isGameOver = false;
-
-            for (let y = 0; y < h; y++) {
-                board[y] = [];
-                for (let x = 0; x < w; x++) {
-                    board[y][x] = { isGoink: false, revealed: false, n: 0, x, y };
-                }
-            }
-
-            let placed = 0;
-            while (placed < g) {
-                let rx = Math.floor(Math.random() * w);
-                let ry = Math.floor(Math.random() * h);
-                if (!board[ry][rx].isGoink) {
-                    board[ry][rx].isGoink = true;
-                    placed++;
-                }
-            }
-
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    if (board[y][x].isGoink) continue;
-                    let count = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            let ny = y + dy, nx = x + dx;
-                            if (ny >= 0 && ny < h && nx >= 0 && nx < w && board[ny][nx].isGoink) count++;
-                        }
-                    }
-                    board[y][x].n = count;
-                }
-            }
-
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'goink-app__cell';
-                    cell.id = `c-${x}-${y}`;
-                    cell.onclick = () => reveal(x, y);
-                    gridEl.appendChild(cell);
-                }
-            }
-        }
-
-        function reveal(x, y) {
-            const w = parseInt(document.getElementById('width').value);
-            const h = parseInt(document.getElementById('height').value);
-            const g = parseInt(document.getElementById('count').value);
-
-            if (isGameOver || board[y][x].revealed) return;
-
-            const cellData = board[y][x];
-            const cellEl = document.getElementById(`c-${x}-${y}`);
-            
-            cellData.revealed = true;
-            cellEl.classList.add('goink-app__cell--revealed');
-
-            if (cellData.isGoink) {
-                cellEl.classList.add('goink-app__cell--goink');
-                cellEl.innerHTML = '<img src="goink.png">';
-                showModal("GOINKED!");
-                return;
-            }
-
-            revealedCells++;
-            if (cellData.n > 0) {
-                cellEl.textContent = cellData.n;
-                cellEl.classList.add(`goink-app__cell--n${cellData.n}`);
-            } else {
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        let ny = y + dy, nx = x + dx;
-                        if (ny >= 0 && ny < h && nx >= 0 && nx < w) reveal(nx, ny);
-                    }
-                }
-            }
-
-            if (revealedCells === (w * h) - g) showModal("GOINK VICTORY!");
-        }
-
-        function showModal(text) {
-            isGameOver = true;
-            document.getElementById('modal-text').textContent = text;
-            document.getElementById('modal').classList.add('goink-modal--visible');
-            
-            board.forEach(row => row.forEach(c => {
-                if (c.isGoink) {
-                    const el = document.getElementById(`c-${c.x}-${c.y}`);
-                    el.classList.add('goink-app__cell--revealed', 'goink-app__cell--goink');
-                    el.innerHTML = '<img src="goink.png">';
-                }
-            }));
-        }
-    </script>
-</body>
+    <script type="module" src="src/main.js"></script>
+  </body>
 </html>

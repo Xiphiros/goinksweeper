@@ -1,0 +1,16 @@
+:root {
+  --color-bg: #101010;
+  --color-surface: #1a1a1a;
+  --color-border: #333;
+  --color-primary: #ff66aa;
+  --color-primary-dim: #993d66;
+  --color-text: #e0e0e0;
+  --color-accent-cyan: #00f0f0;
+  --color-accent-yellow: #f0f000;
+  --color-danger: #ff4444;
+
+  --font-main: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --font-mono: monospace;
+  
+  --header-height: 60px;
+}
