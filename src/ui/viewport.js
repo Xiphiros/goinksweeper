@@ -1,5 +1,9 @@
-import { audio } from '../engine/audio.js';
+import { audio } from "../engine/audio.js";
 
+/**
+ * ViewportManager
+ * Handles panning and zooming of the world container.
+ */
 export class ViewportManager {
   constructor(viewportEl, worldEl, state, onInteraction = null) {
     this.viewport = viewportEl;
@@ -14,10 +18,10 @@ export class ViewportManager {
 
   init() {
     this.viewport.addEventListener("mousedown", (e) => {
-      // Allow context menu but close other UI
       if (this.onInteraction) this.onInteraction();
-      
-      if (e.button === 0 || e.button === 1) {
+
+      // Only allow dragging if the view is NOT locked
+      if (!this.state.viewLocked && (e.button === 0 || e.button === 1)) {
         this.isDragging = true;
         this.lastMouse = { x: e.clientX, y: e.clientY };
       }
@@ -35,37 +39,46 @@ export class ViewportManager {
 
     window.addEventListener("mouseup", () => (this.isDragging = false));
 
-    this.viewport.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      if (this.onInteraction) this.onInteraction();
-      
-      const direction = Math.sign(e.deltaY);
-      audio.updateScrollHum(-direction);
+    this.viewport.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        if (this.onInteraction) this.onInteraction();
 
-      const rect = this.viewport.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+        // Block zoom if view is locked
+        if (this.state.viewLocked) return;
 
-      const worldX = mouseX / this.state.view.scale - this.state.view.x;
-      const worldY = mouseY / this.state.view.scale - this.state.view.y;
+        const direction = Math.sign(e.deltaY);
+        audio.updateScrollHum(-direction);
 
-      const delta = Math.sign(e.deltaY) * -0.15;
-      const prevScale = this.state.view.scale;
-      this.state.view.scale = Math.max(0.1, Math.min(3, prevScale + delta));
+        const rect = this.viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-      this.state.view.x = mouseX / this.state.view.scale - worldX;
-      this.state.view.y = mouseY / this.state.view.scale - worldY;
+        const worldX = mouseX / this.state.view.scale - this.state.view.x;
+        const worldY = mouseY / this.state.view.scale - this.state.view.y;
 
-      this.update();
-    }, { passive: false });
+        const delta = Math.sign(e.deltaY) * -0.15;
+        const prevScale = this.state.view.scale;
+        this.state.view.scale = Math.max(0.1, Math.min(3, prevScale + delta));
+
+        this.state.view.x = mouseX / this.state.view.scale - worldX;
+        this.state.view.y = mouseY / this.state.view.scale - worldY;
+
+        this.update();
+      },
+      { passive: false },
+    );
 
     this.update();
   }
 
   centerOn(worldX, worldY, offsetW = 0, offsetH = 0) {
     const rect = this.viewport.getBoundingClientRect();
-    this.state.view.x = (rect.width / 2 / this.state.view.scale) - (worldX + offsetW / 2);
-    this.state.view.y = (rect.height / 2 / this.state.view.scale) - (worldY + offsetH / 2);
+    this.state.view.x =
+      rect.width / 2 / this.state.view.scale - (worldX + offsetW / 2);
+    this.state.view.y =
+      rect.height / 2 / this.state.view.scale - (worldY + offsetH / 2);
     this.update();
   }
 
@@ -80,7 +93,7 @@ export class ViewportManager {
       left: -this.state.view.x,
       top: -this.state.view.y,
       right: -this.state.view.x + rect.width / this.state.view.scale,
-      bottom: -this.state.view.y + rect.height / this.state.view.scale
+      bottom: -this.state.view.y + rect.height / this.state.view.scale,
     };
   }
 }

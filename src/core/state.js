@@ -6,13 +6,14 @@ import { NODE_TYPES, UPGRADE_DEFINITIONS } from "./constants.js";
  */
 export class StateStore {
   constructor() {
-    // Starting capital set to 50 to allow initial Tier-A cluster purchase.
+    // Default state
     this.gp = 50;
     this.registry = {};
     this.globalAuto = true;
     this.theme = "light";
     this.bgEnabled = true;
     this.bgUrl = "../../bg.jpg";
+    this.viewLocked = false; // New: Camera lock state
 
     this.volume = {
       bgm: 0.5,
@@ -58,6 +59,7 @@ export class StateStore {
       theme: this.theme,
       bgEnabled: this.bgEnabled,
       bgUrl: this.bgUrl,
+      viewLocked: this.viewLocked, // Persist lock
       volume: this.volume,
       view: this.view,
       nextId: this.nextId,
@@ -95,6 +97,7 @@ export class StateStore {
       this.theme = loaded.theme || "light";
       this.bgEnabled = loaded.bgEnabled !== undefined ? loaded.bgEnabled : true;
       this.bgUrl = loaded.bgUrl || "../../bg.jpg";
+      this.viewLocked = loaded.viewLocked || false; // Hydrate lock
 
       if (loaded.volume) {
         this.volume = loaded.volume;

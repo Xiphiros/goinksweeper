@@ -199,6 +199,28 @@ class GoinksweeperApp {
       this.focusOnFirstNode();
     };
 
+    // Camera Lock Toggle
+    const lockBtn = document.getElementById("btn-lock-view");
+    const updateLockIcon = () => {
+      const icon = lockBtn.querySelector("i");
+      if (state.viewLocked) {
+        icon.className = "fa-solid fa-lock";
+        lockBtn.classList.add("btn-floating--active");
+      } else {
+        icon.className = "fa-solid fa-lock-open";
+        lockBtn.classList.remove("btn-floating--active");
+      }
+    };
+    updateLockIcon();
+
+    lockBtn.onclick = (e) => {
+      e.stopPropagation();
+      state.viewLocked = !state.viewLocked;
+      state.save();
+      updateLockIcon();
+      audio.playUiToggle(state.viewLocked);
+    };
+
     const bgmSlider = document.getElementById("slider-bgm");
     const sfxSlider = document.getElementById("slider-sfx");
     bgmSlider.value = state.volume.bgm;

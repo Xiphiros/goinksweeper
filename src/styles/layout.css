@@ -8,7 +8,7 @@ body {
   transition:
     background-color 0.5s ease,
     color 0.5s ease;
-  cursor: default; /* Reverted to normal */
+  cursor: default;
 }
 
 /* --- HEADER --- */
@@ -247,6 +247,38 @@ input[type="range"] {
 }
 .viewport--dimmed {
   filter: brightness(0.6);
+}
+
+/* --- FLOATING ACTION BUTTON --- */
+.btn-floating {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  box-shadow: 0 4px 15px var(--color-primary-glow);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.btn-floating:hover {
+  transform: scale(1.1);
+  background: var(--color-primary-dim);
+}
+.btn-floating:active {
+  transform: scale(0.9);
+}
+.btn-floating--active {
+  background: var(--color-accent-blue);
+  box-shadow: 0 4px 15px rgba(0, 180, 216, 0.4);
 }
 
 /* --- REUSABLE BUTTONS --- */
