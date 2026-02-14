@@ -74,6 +74,7 @@ export class GameContext {
     const s = getComputedStyle(document.body);
     const accLevel = state.getOwned("autoAcc");
     const speedLevel = state.getOwned("autoSpeed");
+    const rebootLevel = state.getOwned("autoReboot");
 
     this.worker.postMessage({
       type: "SYNC_CONFIG",
@@ -81,6 +82,7 @@ export class GameContext {
         scale: state.view.scale,
         accuracy: Autogoinker.getAccuracy(accLevel),
         speed: Autogoinker.getInterval(speedLevel),
+        rebootLevel: rebootLevel,
         colors: {
           surface: s.getPropertyValue("--color-surface").trim(),
           surfaceAlt: s.getPropertyValue("--color-surface-alt").trim(),

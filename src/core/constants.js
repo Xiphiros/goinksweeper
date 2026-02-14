@@ -120,4 +120,11 @@ export const UPGRADE_DEFINITIONS = [
     scale: 1.8,
     desc: "Increases probability of safe cell selection.",
   },
+  {
+    id: "autoReboot",
+    name: "Cycle Optimizer",
+    base: 2000,
+    scale: 1.7,
+    desc: "Reduces downtime after board completion.",
+  },
 ];

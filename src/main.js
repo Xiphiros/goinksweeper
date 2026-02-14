@@ -529,7 +529,11 @@ class GoinksweeperApp {
     UPGRADE_DEFINITIONS.forEach((u) => {
       const owned = state.getOwned(u.id);
       if (u.max && owned >= u.max) return;
-      if (!state.systemUnlocked && (u.id === "autoSpeed" || u.id === "autoAcc"))
+      // Filter out auto upgrades if system isn't unlocked
+      if (
+        !state.systemUnlocked &&
+        (u.id === "autoSpeed" || u.id === "autoAcc" || u.id === "autoReboot")
+      )
         return;
       const cost = state.getItemCost(u.id);
       const card = document.createElement("div");

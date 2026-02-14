@@ -31,6 +31,19 @@ export class Autogoinker {
   }
 
   /**
+   * Calculates the reset delay after a board is cleared or goinked.
+   * Reduces the downtime based on upgrade level.
+   * Floor is clamped to 500ms to ensure animations resolve.
+   */
+  static getRebootDelay(rebootLevel, baseDelay) {
+    // Default level is 0 if not bought, treat as 1 (no reduction)
+    const level = Math.max(0, rebootLevel || 0);
+    // Each level reduces delay by ~8%
+    const scalar = Math.pow(0.92, level); 
+    return Math.max(500, baseDelay * scalar);
+  }
+
+  /**
    * Decision Engine:
    * Based on fidelity roll, chooses a guaranteed safe cell or a random unrevealed cell.
    */

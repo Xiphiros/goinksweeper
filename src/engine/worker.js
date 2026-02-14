@@ -1,4 +1,4 @@
-import { DIFFICULTIES, NODE_TYPES } from "../core/constants.js";
+import { DIFFICULTIES, NODE_TYPES, LIFECYCLE } from "../core/constants.js";
 import { Autogoinker } from "./autogoinker.js";
 
 /**
@@ -13,6 +13,7 @@ let config = {
   viewScale: 1,
   accuracy: 0.05,
   speed: 2000,
+  rebootLevel: 0,
 };
 
 let lastTick = performance.now();
@@ -27,6 +28,7 @@ self.onmessage = function (e) {
       config.viewScale = data.scale;
       config.accuracy = data.accuracy || 0.05;
       config.speed = data.speed || 2000;
+      config.rebootLevel = data.rebootLevel || 0;
       nodes.forEach((n) => (n.dirty = true));
       break;
 
@@ -226,11 +228,15 @@ function processInteraction(nodeId, idx, isAuto) {
 
     const currentGen = node.genId;
     clearNodeTimer(nodeId);
+    
+    // Calculate dynamic delay based on upgrade
+    const delay = Autogoinker.getRebootDelay(config.rebootLevel, LIFECYCLE.GOINKED_RESET_DELAY);
+
     const tid = setTimeout(() => {
       if (nodes.has(nodeId) && nodes.get(nodeId).genId === currentGen) {
         executeLifecycleReset(nodeId);
       }
-    }, 4000);
+    }, delay);
     activeTimers.set(nodeId, tid);
   } else {
     self.postMessage({ type: "SFX", data: { name: "note", value: cell.v } });
@@ -259,11 +265,15 @@ function processInteraction(nodeId, idx, isAuto) {
 
       const currentGen = node.genId;
       clearNodeTimer(nodeId);
+
+      // Calculate dynamic delay based on upgrade
+      const delay = Autogoinker.getRebootDelay(config.rebootLevel, LIFECYCLE.CLEARED_RESET_DELAY);
+
       const tid = setTimeout(() => {
         if (nodes.has(nodeId) && nodes.get(nodeId).genId === currentGen) {
           executeLifecycleReset(nodeId);
         }
-      }, 2500);
+      }, delay);
       activeTimers.set(nodeId, tid);
     }
   }
